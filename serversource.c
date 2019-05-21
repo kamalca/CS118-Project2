@@ -12,10 +12,9 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include "header.h"
+#include "packet.h"
 
 #define BACKLOG 10
-
 
 int main(int argc, char* argv[]){
 	if(argc != 2){
@@ -55,20 +54,41 @@ int main(int argc, char* argv[]){
     exit(1);
   }
 
-  if (listen(sockfd, BACKLOG) == -1){
-    fprintf(stderr, "Error listening to socket\n");
-    exit(1);
-  }
 
+  struct packet* sendingPacket = calloc(1, sizeof(struct packet));
+  struct packet* receivedPacket = calloc(1, sizeof(struct packet));
+  struct sockaddr_in* cliaddr = calloc(1, sizeof(struct sockaddr_in));
   while (1){
 		//main loop waits for requests from clients and then serves them
-    new_fd = accept(sockfd, (struct sockaddr*) &their_addr, &size);
-    if (new_fd == -1){
-      fprintf(stderr, "Error: could not accept a new connection\n");
-      continue;
-    }
+  	memset(sendingPacket, 0, sizeof(struct packet));
+  	memset(receivedPacket, 0, sizeof(struct packet));
+  	memset(cliaddr, 0, sizeof(struct sockaddr));
 
-    //parseRequest(new_fd);
-    close(new_fd);
+  	sendingPacket->seqNum = 123;
+	sendingPacket->syn = 1;
+	strcpy(sendingPacket->message, "Testing message.\n");
+
+    unsigned int len, n; 
+    len = sizeof(cliaddr);
+    n = recvfrom(sockfd, (char *)receivedPacket, 524, MSG_WAITALL,
+    	(struct sockaddr *) cliaddr, (socklen_t *) &len); 
+    printf("Client: %s\n", receivedPacket->message); 
+    n = sendto(sockfd, sendingPacket->message, 512,  
+        0, (const struct sockaddr *) cliaddr, 
+            (socklen_t) sizeof(struct sockaddr_in)); 
+
   }
+  free(sendingPacket);
+  free(receivedPacket);
+  free(cliaddr);
 }
+
+
+
+
+
+
+
+
+
+
