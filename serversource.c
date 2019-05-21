@@ -82,13 +82,3 @@ int main(int argc, char* argv[]){
   free(receivedPacket);
   free(cliaddr);
 }
-
-
-
-
-
-
-
-
-
-
