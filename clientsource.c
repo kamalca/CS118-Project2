@@ -40,9 +40,9 @@ int main(int argc, char* argv[]){
   filename = argv[3];
 
   //setting up socket
-  int socket = socket(AF_INET, SOCK_DGRAM, 0);
-  socklen_t size = sizeof(struct sockaddr_in);
-  struct sockaddr_in their_addr;
+  int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  //socklen_t size = sizeof(struct sockaddr_in);
+  //struct sockaddr_in their_addr;
 
   //opening target file
   int filefd = open(filename, O_RDONLY);
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
   //do handshake
   //split up file, send in packets
   //closing socket
-  close(socket);
+  close(sockfd);
 
   return 0;
 }
