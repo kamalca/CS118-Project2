@@ -6,4 +6,4 @@ struct header {
 	char syn;
 	char fin;
 	char zeros[5];
-}
+};
