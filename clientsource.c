@@ -5,20 +5,36 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <netinet/in.h>
-#include "header.h"
+#include "packet.h"
+#include <errno.h>
 
 int transmit(int file){
   //this function will be used to split the file into smaller sections and send to server
+  printf("%i\n", file);
   return -1;
 }
 
-int handshake(struct sockaddr* address){
+int handshake(int sockfd, struct sockaddr* address){
+  struct packet syn = {0, 0, 0, 1, 0, {0, 0, 0, 0, 0}, {}}, synack;
+  socklen_t size = sizeof(struct sockaddr_in);
   //send syn
+  if (sendto(sockfd, (void*) &syn, sizeof(syn), 0, address, size) == -1){
+    fprintf(stderr, "Couldn't send syn, errno %i\n", errno);
+    return -1;
+  }
+
   //wait for ack
-  return -1;
+  if (recvfrom(sockfd, (void*) &synack, sizeof(synack), 0, NULL, 0) == -1){
+    fprintf(stderr, "Couldn't receive synack, errno %i\n", errno);
+    return -1;
+  }
+  if (synack.syn != 1)
+    return -1;
+  return 0;
 }
 
 int iptoint(char* host){
+  printf("%s\n", host);
   return -1;
 }
 
@@ -41,7 +57,7 @@ int main(int argc, char* argv[]){
   char* filename;
 
   if (argc != 4){
-    fprintf(stderr, "Incorrect number of arguments.\nclient should be invoked with three arguments as\n./client <HOSTNAME-OR-IP> <PORT> <FILENAME\n");
+    fprintf(stderr, "Incorrect number of arguments.\nclient should be invoked with three arguments as\n./client <HOSTNAME-OR-IP> <PORT> <FILENAME>\n");
     exit(1);
   }
 
@@ -70,22 +86,21 @@ int main(int argc, char* argv[]){
 
   //setting up socket
   int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-  socklen_t size = sizeof(struct sockaddr_in);
   struct sockaddr_in their_addr;
   their_addr.sin_family = AF_INET;
   their_addr.sin_port = htons(port);
-  their_addr.sin_addr.s_addr = htonl(servername);
-  memset(&their_addr, 0, sizeof(their_addr));
+  their_addr.sin_addr.s_addr = htonl(0x7f000001);
+  memset(their_addr.sin_zero, '\0', sizeof(their_addr.sin_zero));
   struct sockaddr* addr = (struct sockaddr*) &their_addr;
 
   //do handshake
-  if (handshake(addr) == -1){
-    fprintf(stderr, "handshake failed\n");
+  if (handshake(sockfd, addr) == -1){
+    fprintf(stderr, "Handshake failed\n");
     close(sockfd);
     exit(1);
   }
 
-  //split up file, send in packets
+  //transmit file
   if (transmit(filefd) == -1){
     fprintf(stderr, "transmission failed\n");
     close(sockfd);
