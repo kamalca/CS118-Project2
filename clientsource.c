@@ -8,14 +8,15 @@
 #include "packet.h"
 #include <errno.h>
 
-int transmit(int file){
+int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
   //this function will be used to split the file into smaller sections and send to server
   printf("%i\n", file);
   return -1;
 }
 
-int handshake(int sockfd, struct sockaddr* address){
-  struct packet syn = {0, 0, 0, 1, 0, {0, 0, 0, 0, 0}, {}}, synack;
+int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
+  *seqNum = rand();
+  struct packet syn = {*seqNum, 0, 0, 1, 0, {0, 0, 0, 0, 0}, {}}, synack;
   socklen_t size = sizeof(struct sockaddr_in);
   //send syn
   if (sendto(sockfd, (void*) &syn, sizeof(syn), 0, address, size) == -1){
@@ -30,6 +31,13 @@ int handshake(int sockfd, struct sockaddr* address){
   }
   if (synack.syn != 1)
     return -1;
+  *ackNum = synack.seqNum + 1;
+  if (synack.ackNum != *seqNum + 1){
+    fprintf(stderr, "synack returned incorrect ack number\n");
+    return -1;
+  }
+  (*seqNum)++;
+
   return 0;
 }
 
@@ -86,6 +94,7 @@ int main(int argc, char* argv[]){
 
   //setting up socket
   int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  unsigned short seqNum, ackNum;
   struct sockaddr_in their_addr;
   their_addr.sin_family = AF_INET;
   their_addr.sin_port = htons(port);
@@ -94,14 +103,14 @@ int main(int argc, char* argv[]){
   struct sockaddr* addr = (struct sockaddr*) &their_addr;
 
   //do handshake
-  if (handshake(sockfd, addr) == -1){
+  if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
     fprintf(stderr, "Handshake failed\n");
     close(sockfd);
     exit(1);
   }
 
   //transmit file
-  if (transmit(filefd) == -1){
+  if (transmit(filefd, sockfd, addr, &seqNum, &ackNum) == -1){
     fprintf(stderr, "transmission failed\n");
     close(sockfd);
     exit(1);
