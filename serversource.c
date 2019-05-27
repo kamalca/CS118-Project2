@@ -13,63 +13,188 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <signal.h>
 #include "packet.h"
 
 #define BACKLOG 10
+#define MAXSEQ 25600
+#define RWND 20
 
-void serveClient(int sockfd){
+const char* testMessage = "Message: \"";
+
+//TESTING
+void printPacket(struct packet* p){
+	printf("SEQ: %d\n", p->seqNum);
+	printf("ACK: %d\n", p->ackNum);
+	printf("Flags: ack %d, syn %d, fin %d\n", p->ack, p->syn, p->fin);
+}
+
+void signalReceived(int sig){
+	if(sig == SIGQUIT || sig == SIGTERM) {
+		write(2, "Stopping Server.\n", 17);
+		_exit(0);
+	}
+}
+
+void serveClient(int sockfd, int connectionNum){
 	srand(time(NULL));
 	struct packet* sendingPacket = calloc(1, sizeof(struct packet));
 	struct packet* receivedPacket = calloc(1, sizeof(struct packet));
 	struct sockaddr_in* cliaddr = calloc(1, sizeof(struct sockaddr_in));
+	char** buff = calloc(RWND, sizeof(char*));
+	int* buffLen = calloc(RWND, sizeof(int));
+	int outfd = -1;
 	unsigned int len, n;
+	int window = -1;
+	unsigned int seq = rand() % MAXSEQ;
+	int fin = 0;
 
-	sendingPacket->seqNum = rand() % 25601;
-	sendingPacket->syn = 1;
+	
 	//Testing
-	strcpy(sendingPacket->message, "Testing message.\n");
-	sendto(sockfd, sendingPacket, 524,  0,
-		(const struct sockaddr *) cliaddr,
-		(socklen_t) sizeof(struct sockaddr_in)); 
+	// strcpy(sendingPacket->message, "Testing message.\n");
+	// sendto(sockfd, sendingPacket, 524,  0,
+	// 	(const struct sockaddr *) cliaddr,
+	// 	(socklen_t) sizeof(struct sockaddr_in)); 
 
-	while(1){
+	while(!fin){
 		memset(sendingPacket, 0, sizeof(struct packet));
 		memset(receivedPacket, 0, sizeof(struct packet));
 		memset(cliaddr, 0, sizeof(struct sockaddr));
 
 		len = sizeof(cliaddr);
-		n = recvfrom(sockfd, (char *)receivedPacket, 524, MSG_WAITALL,
-				(struct sockaddr *) cliaddr, (socklen_t *) &len); 
-		printf("Client: %s\n", receivedPacket->message);
+		n = recvfrom(sockfd, (char *)receivedPacket, sizeof(struct packet), MSG_WAITALL,
+				(struct sockaddr *) cliaddr, (socklen_t *) &len);
 
-		sendingPacket->ackNum = receivedPacket->seqNum + n - 12;
-		sendingPacket->ack = 1;
+		//Testing
+		printf("\nReceived:\n");
+		printPacket(receivedPacket);
 
-		if(receivedPacket->fin){
-			sendingPacket->ack = 1;
-			sendingPacket->ackNum = receivedPacket->seqNum + 1;
-			sendto(sockfd, sendingPacket, 524,  
-				0, (const struct sockaddr *) cliaddr, 
-				(socklen_t) sizeof(struct sockaddr_in));
-			sendingPacket->fin = 1;
-			sendingPacket->ack = 0;
-			sendingPacket->ackNum = 0;
+		//Received SYN packet
+		if(receivedPacket->syn != 0){
+			char filename[50];
+			snprintf(filename, 49, "%d.file", connectionNum);
+			outfd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
+			if(outfd < 0){
+				fprintf(stderr, "Could not open file: %s\n", filename);
+				break;
+			}
+
+			sendingPacket->syn = 1;
+			window = receivedPacket->seqNum + 1;
 		}
 
-		sendto(sockfd, sendingPacket, 524,  
+		//First packet is not SYN
+		if(window == -1 || outfd < 0){
+			fprintf(stderr, "First Packet is not SYN. (Dropped)\n");
+			continue;
+		}
+
+		//Packet in order
+		if(receivedPacket->seqNum == window){
+			//Inconsistency Check
+			if(receivedPacket->ack && receivedPacket->ackNum != seq){
+				fprintf(stderr, "Packet ACK may not be correct.\n");
+			}
+
+			//Write payload to file and increase window
+			write(0, testMessage, strlen(testMessage));
+			write(0, receivedPacket->message, n-12);
+			if(write(outfd, receivedPacket->message, n-12) < 0){
+				fprintf(stderr, "Could not print to fd %d\n", outfd);
+				fprintf(stderr, "Error: %s\n", strerror(errno));
+			}
+			printf("\"\n");
+			window = (receivedPacket->seqNum + n - 12) % (MAXSEQ+1);
+
+			//Write any (sequential) buffered packets to file
+			int i;
+			for(i = 0; buff[i] != NULL && i < RWND; i++){
+				write(0, testMessage, strlen(testMessage));
+				write(0, receivedPacket->message, buffLen[i]);
+				write(outfd, receivedPacket->message, buffLen[i]);
+				printf("\"\n");
+				window += (buffLen[i]) % (MAXSEQ+1);
+				free(buff[i]);
+				buff[i] = NULL;
+				buffLen[i] = 0;
+			}
+			//Move remaining (non-sequential) buffered packets forward
+			for(int j = i + 1; j < RWND; j++){
+				if(buff[j] != NULL){
+					buff[j-i-1] = buff[j];
+					buffLen[j-i-1] = buffLen[j];
+					buff[j] = NULL;
+					buffLen[j] = 0;
+				}
+			}
+
+			//Packet was FIN
+			if((fin = receivedPacket->fin)){
+				window = (window + 1) % (MAXSEQ+1);
+			}
+		}
+		//Packet out of order
+		else if(receivedPacket->syn == 0 && receivedPacket->fin == 0){
+			unsigned int i;
+
+			//Calculate buffer location. Must handle wrap-around for SeqNum
+			if(receivedPacket->seqNum > window)
+				i = ((receivedPacket->seqNum - window) / 512) - 1;
+			else
+				i = (((receivedPacket->seqNum + MAXSEQ + 1) - window) / 512) - 1;
+
+			if(buff[i] == NULL){
+				buff[i] = calloc(1, n - 12);
+				strncpy(buff[i], receivedPacket->message, n - 12);
+				buffLen[i] = n - 12;
+			}
+		}
+
+		//ACK the next expected packet
+		sendingPacket->seqNum = seq;
+		sendingPacket->ackNum = window;
+		sendingPacket->ack = 1;
+
+		//Testing
+		printf("\nWindow: %d\n", window);
+		printf("\nSending:\n");
+		printPacket(sendingPacket);
+
+		//Send ACK
+		sendto(sockfd, sendingPacket, sizeof(struct packet),  
 			0, (const struct sockaddr *) cliaddr, 
-			(socklen_t) sizeof(struct sockaddr_in)); 
+			(socklen_t) sizeof(struct sockaddr_in));
+		seq++;
 
 	}
 
+	memset(sendingPacket, 0, sizeof(struct packet));
+	sendingPacket->fin = 1;
+	sendingPacket->seqNum = seq;
+
+	//Testing
+	printf("\nSending:\n");
+	printPacket(sendingPacket);
+
+	//Send FIN
+	sendto(sockfd, sendingPacket, sizeof(struct packet),  
+		0, (const struct sockaddr *) cliaddr, 
+		(socklen_t) sizeof(struct sockaddr_in));
+	seq++;
 
 
 	free(sendingPacket);
 	free(receivedPacket);
 	free(cliaddr);
+	free(buff);
+	free(buffLen);
+	close(outfd);
 }
 
 int main(int argc, char* argv[]){
+	signal(SIGTERM, signalReceived);
+	signal(SIGQUIT, signalReceived);
+	signal(SIGINT, signalReceived);
 	if(argc != 2){
 		fprintf(stderr, "ERROR: usage: %s [port number]\n", argv[0]);
 		exit(1);
@@ -80,35 +205,34 @@ int main(int argc, char* argv[]){
 		exit(1);
 	}
 
-	int sockfd, new_fd;
-  socklen_t size = sizeof(struct sockaddr_in);
-  struct sockaddr_in my_addr, their_addr;
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	int sockfd;
+	struct sockaddr_in my_addr;
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
-  if (sockfd == -1){
-    fprintf(stderr, "ERROR: Could not create socket\n");
-    exit(1);
-  }
+	if (sockfd == -1){
+	fprintf(stderr, "ERROR: Could not create socket\n");
+	exit(1);
+	}
 
-//allows sockfd to be reused
-  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == -1){
-    fprintf(stderr, "ERROR setsockopt: %s\n", strerror(errno));
-    exit(1);
-  }
+	//allows sockfd to be reused
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == -1){
+	fprintf(stderr, "ERROR setsockopt: %s\n", strerror(errno));
+	exit(1);
+	}
 
-  my_addr.sin_family = AF_INET;
-  my_addr.sin_port = htons(port);
-  my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  memset(my_addr.sin_zero, '\0', sizeof(my_addr.sin_zero));
+	my_addr.sin_family = AF_INET;
+	my_addr.sin_port = htons(port);
+	my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	memset(my_addr.sin_zero, '\0', sizeof(my_addr.sin_zero));
 
-  if (bind(sockfd, (struct sockaddr*) &my_addr, sizeof(struct sockaddr)) == -1){
-    fprintf(stderr, "ERROR: Could not bind socket\n");
-    exit(1);
-  }
-  
-  while (1){
-	//main loop waits for requests from clients and then serves them
+	if (bind(sockfd, (struct sockaddr*) &my_addr, sizeof(struct sockaddr)) == -1){
+	fprintf(stderr, "ERROR: Could not bind socket\n");
+	exit(1);
+	}
 
-  }
+	for(int i = 1 ;; i++){
+	//Serve Clients
+		serveClient(sockfd, i);
+	}
 
-}
+	}
