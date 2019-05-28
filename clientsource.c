@@ -13,10 +13,10 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
     //this function will be used to split the file into smaller sections and send to server
     int numRead, offset = 0;
     struct packet message, ack;
-
+    message.syn = message.ack = message.fin = 0;
+    
     do{//use alarm() function with signal handler for SIGALRM, also hinted at using C++ std::chrono
         //or use select() on the socket stream (but that would only work on stop-and-wait)
-        //if numRead < payload, send with fin
         numRead = pread(file, message.message, PAYLOAD, offset);
 
         if (numRead == -1){
@@ -24,11 +24,11 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             return -1;
         }
 
-        write(1, message.message, numRead);
+        write(1, message.message, numRead);//for debugging purposes
         message.seqNum = *seqNum;
         message.ackNum = *ackNum;
 
-        if(sendto(sockfd, (void*) &message, sizeof(message), 0, address, sizeof(*address)) == -1){
+        if(sendto(sockfd, (void*) &message, 12 + numRead, 0, address, sizeof(*address)) == -1){
             fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
             return -1;
         }
@@ -43,19 +43,21 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
 
         //check server ack
         (*seqNum) += numRead;
-        if (ack.ackNum != *seqNum + 1){
-            fprintf(stderr, "Wrong ack ackNum\n");
+        if (ack.ackNum != *seqNum){
+            fprintf(stderr, "Wrong ack ackNum, expected ackNum %i\n", *seqNum);
             return -1;
         }
         if (ack.seqNum != *ackNum){
-            fprintf(stderr, "Wrong ack seqNum\n");
+            fprintf(stderr, "Wrong ack seqNum, expected seqNum %i\n", *ackNum);
             return -1;
         }
-        (*ackNum) += numRead;
 
         offset += numRead;
     }while (numRead == PAYLOAD);
 
+    //use fin to close connection
+    message.fin = 1;
+    
     return 0;
 }
 
