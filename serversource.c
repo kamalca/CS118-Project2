@@ -88,6 +88,9 @@ void serveClient(int sockfd, int connectionNum){
 				continue;
 			}
 			else{
+				filename[0] = 0;
+				close(outfd);
+				outfd = -1;
 				break;
 			}
 		}
@@ -107,6 +110,8 @@ void serveClient(int sockfd, int connectionNum){
 			if(ftruncate(outfd, 0) < 0){
 				fprintf(stderr, "Could not clear file: %s\n", filename);
 				fprintf(stderr, "Error: %s\n", strerror(errno));
+				close(outfd);
+				outfd = -1;
 				break;
 			}
 
@@ -163,6 +168,8 @@ void serveClient(int sockfd, int connectionNum){
 			if((fin = receivedPacket->fin)){
 				window = (window + 1) % (MAXSEQ+1);
 				filename[0] = 0;
+				close(outfd);
+				outfd = -1;
 			}
 		}
 		//Packet out of order
