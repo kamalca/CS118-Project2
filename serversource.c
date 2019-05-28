@@ -154,6 +154,8 @@ void serveClient(int sockfd, int connectionNum){
 		sendingPacket->seqNum = seq;
 		sendingPacket->ackNum = window;
 		sendingPacket->ack = 1;
+		if(sendingPacket->syn != 0)
+			seq++;
 
 		//Testing
 		printf("\nWindow: %d\n", window);
@@ -164,8 +166,6 @@ void serveClient(int sockfd, int connectionNum){
 		sendto(sockfd, sendingPacket, sizeof(struct packet),  
 			0, (const struct sockaddr *) cliaddr, 
 			(socklen_t) sizeof(struct sockaddr_in));
-		seq++;
-
 	}
 
 	memset(sendingPacket, 0, sizeof(struct packet));
