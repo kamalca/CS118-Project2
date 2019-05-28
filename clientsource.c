@@ -13,10 +13,11 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
     //this function will be used to split the file into smaller sections and send to server
     int numRead, offset = 0;
     struct packet message, ack;
-    message.syn = message.ack = message.fin = 0;
+    message.ack = 1;
+    message.syn = message.fin = 0;
+    memset(message.zeros, 0, sizeof(message.zeros));
     
     do{//use alarm() function with signal handler for SIGALRM, also hinted at using C++ std::chrono
-        //or use select() on the socket stream (but that would only work on stop-and-wait)
         numRead = pread(file, message.message, PAYLOAD, offset);
 
         if (numRead == -1){
@@ -35,7 +36,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         printf("\nSending packet with seqNum %i and ackNum %i\n", *seqNum, *ackNum);
 
         //receive ack from server
-        if (recvfrom(sockfd, (void*) &ack, sizeof(ack), 0, NULL, NULL) == -1){
+        if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
             fprintf(stderr, "Couldn't receive ack from server, %i\n", errno);
             return -1;
         }
@@ -53,30 +54,53 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         }
 
         offset += numRead;
+        message.ack = 0;
     }while (numRead == PAYLOAD);
 
     //use fin to close connection
     message.fin = 1;
+    if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
+        fprintf(stderr, "Couldn't send fin to server, %s\n", strerror(errno));
+        return -1;
+    } printf("sent fin\n");
+    
+    //receive finack
+    if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
+        fprintf(stderr, "Couldn't receive finack from server, %s\n", strerror(errno));
+        return -1;
+    } printf("received finack\n");
+    
+    //recieve fin
+    if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
+        fprintf(stderr, "Couldn't receive fin from server, %s\n", strerror(errno));
+        return -1;
+    } printf("received fin\n");
+    
+    //send finack
+    if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
+        fprintf(stderr, "Couldn't send finack to server, %s\n", strerror(errno));
+        return -1;
+    } printf("sent finack\n");
     
     return 0;
 }
 
 int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
 
-    *seqNum = rand(); //assigning random sequence number
+    *seqNum = rand() % 25600; //assigning random sequence number
 
     struct packet syn = {*seqNum, 0, 0, 1, 0, {0, 0, 0, 0, 0}, {}}, synack;
     socklen_t size = sizeof(struct sockaddr_in);
 
     //send syn
-    if (sendto(sockfd, (void*) &syn, sizeof(syn), 0, address, size) == -1){
+    if (sendto(sockfd, (void*) &syn, 12, 0, address, size) == -1){
         fprintf(stderr, "Couldn't send SYN to server, %s\n", strerror(errno));
         return -1;
     }
     printf("hand shaken with seqNum %i\n", *seqNum);
 
     //wait for ack
-    if (recvfrom(sockfd, (void*) &synack, sizeof(synack), 0, NULL, 0) == -1){
+    if (recvfrom(sockfd, (void*) &synack, 12, 0, NULL, 0) == -1){
         fprintf(stderr, "Couldn't receive SYNACK from server, %s\n", strerror(errno));
         return -1;
     }
@@ -171,6 +195,9 @@ int main(int argc, char* argv[]){
     their_addr.sin_addr.s_addr = htonl(servername);
     memset(their_addr.sin_zero, '\0', sizeof(their_addr.sin_zero));
     struct sockaddr* addr = (struct sockaddr*) &their_addr;
+    //timeout setting
+    struct timeval timeout = {10, 0};
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
 
     //create signal handler for SIGINT and SIGTERM, use globals
 
