@@ -31,7 +31,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             return -1;
         }
         
-        if(sendto(sockfd, (void*) &message, sizeof(message), 0, address, sizeof(message)) == -1){
+        if(sendto(sockfd, (void*) &message, sizeof(message), 0, address, sizeof(*address)) == -1){
             fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
             return -1;
         }
