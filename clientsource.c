@@ -11,48 +11,48 @@
 
 int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
     //this function will be used to split the file into smaller sections and send to server
-    char buffer[PAYLOAD];
     int numRead, offset = 0;
     struct packet message, ack;
     
-    do{
-        numRead = pread(file, buffer, PAYLOAD, offset);
+    do{//use alarm() function with signal handler for SIGALRM, also hinted at using C++ std::chrono
+        //or use select() on the socket stream (but that would only work on stop-and-wait)
+        //if numRead < payload, send with fin
+        numRead = pread(file, message.message, PAYLOAD, offset);
         
         if (numRead == -1){
             fprintf(stderr, "Error reading file, %s\n", strerror(errno));
             return -1;
         }
         
-        write(1, buffer, numRead);
+        write(1, message.message, numRead);
         message.seqNum = *seqNum;
         message.ackNum = *ackNum;
-        if (strncpy(message.message, buffer, numRead) != (message.message)){
-            fprintf(stderr, "strncpy error, %s\n", strerror(errno));
-            return -1;
-        }
         
+        //send message to server
         if(sendto(sockfd, (void*) &message, sizeof(message), 0, address, sizeof(message)) == -1){
-            fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
+            fprintf(stderr, "Couldn't send packet to server, %i\n", errno);
             return -1;
         }
         printf("\nSending packet with seqNum %i and ackNum %i\n", *seqNum, *ackNum);
         
+        //receive ack from server
         if (recvfrom(sockfd, (void*) &ack, sizeof(ack), 0, NULL, NULL) == -1){
-            fprintf(stderr, "Couldn't receive ack from server, %s\n", strerror(errno));
+            fprintf(stderr, "Couldn't receive ack from server, %i\n", errno);
             return -1;
         }
         printf("\nReceived packet with seqNum %i and ackNum %i\n", ack.seqNum, ack.ackNum);
+        
+        //check server ack
+        (*seqNum) += numRead;
         if (ack.ackNum != *seqNum + 1){
-            fprintf(stderr, "Wrong ack acknum\n");
+            fprintf(stderr, "Wrong ack ackNum\n");
             return -1;
         }
         if (ack.seqNum != *ackNum){
-            fprintf(stderr, "Wrong ack seqnum\n");
+            fprintf(stderr, "Wrong ack seqNum\n");
             return -1;
         }
-        
-        (*ackNum)++;
-        (*seqNum)++;
+        (*ackNum) += numRead;
         
         offset += numRead;
     }while (numRead == PAYLOAD);
@@ -170,6 +170,8 @@ int main(int argc, char* argv[]){
     their_addr.sin_addr.s_addr = htonl(servername);
     memset(their_addr.sin_zero, '\0', sizeof(their_addr.sin_zero));
     struct sockaddr* addr = (struct sockaddr*) &their_addr;
+    
+    //create signal handler for SIGINT and SIGTERM, use globals
     
     //do handshake
     if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
