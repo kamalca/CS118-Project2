@@ -41,8 +41,10 @@ void serveClient(int sockfd, int connectionNum){
 	struct packet* sendingPacket = calloc(1, sizeof(struct packet));
 	struct packet* receivedPacket = calloc(1, sizeof(struct packet));
 	struct sockaddr_in* cliaddr = calloc(1, sizeof(struct sockaddr_in));
-	char** buff = calloc(RWND, sizeof(char*));
-	int* buffLen = calloc(RWND, sizeof(int));
+    char* buff[RWND];
+    int buffLen[RWND];
+    memset(buff, 0, RWND*sizeof(buff[0]));
+    memset(buffLen, 0, RWND*sizeof(buffLen[0]));
 	int outfd = -1;
 	unsigned int len, n;
 	int window = -1;
@@ -135,7 +137,7 @@ void serveClient(int sockfd, int connectionNum){
 		}
 		//Packet out of order
 		else if(receivedPacket->syn == 0 && receivedPacket->fin == 0){
-			unsigned int i;
+			int i;
 
 			//Calculate buffer location. Must handle wrap-around for SeqNum
 			if(receivedPacket->seqNum > window)
@@ -186,8 +188,6 @@ void serveClient(int sockfd, int connectionNum){
 	free(sendingPacket);
 	free(receivedPacket);
 	free(cliaddr);
-	free(buff);
-	free(buffLen);
 	close(outfd);
 }
 
