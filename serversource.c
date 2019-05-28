@@ -36,14 +36,15 @@ void signalReceived(int sig){
 	if(sig == SIGQUIT || sig == SIGTERM) {
 		write(2, "Stopping Server.\n", 17);
 		if(strlen(filename) > 0){
-			int outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
+			int outfd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
 			if(outfd < 0){
-				remove(filename);
-				outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
-				if(outfd < 0){
-					fprintf(stderr, "Could not open file: %s\n", filename);
-					break;
-				}
+				fprintf(stderr, "Could not open file: %s\n", filename);
+				_exit(0);
+			}
+			if(ftruncate(outfd, 0) < 0){
+				fprintf(stderr, "Could not clear file: %s\n", filename);
+				fprintf(stderr, "Error: %s\n", strerror(errno));
+				_exit(0);
 			}
 			write(outfd, "INTERRUPT\n", 10);
 		}
@@ -98,14 +99,15 @@ void serveClient(int sockfd, int connectionNum){
 		//Received SYN packet
 		if(receivedPacket->syn != 0){
 			snprintf(filename, 49, "%d.file", connectionNum);
-			outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
+			outfd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
 			if(outfd < 0){
-				remove(filename);
-				outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
-				if(outfd < 0){
-					fprintf(stderr, "Could not open file: %s\n", filename);
-					break;
-				}
+				fprintf(stderr, "Could not open file: %s\n", filename);
+				break;
+			}
+			if(ftruncate(outfd, 0) < 0){
+				fprintf(stderr, "Could not clear file: %s\n", filename);
+				fprintf(stderr, "Error: %s\n", strerror(errno));
+				break;
 			}
 
 			sendingPacket->syn = 1;
