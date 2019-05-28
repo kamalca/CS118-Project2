@@ -20,7 +20,10 @@
 #define MAXSEQ 25600
 #define RWND 20
 
+//TESTING
 const char* testMessage = "Message: \"";
+
+char filename[50];
 
 //TESTING
 void printPacket(struct packet* p){
@@ -32,6 +35,18 @@ void printPacket(struct packet* p){
 void signalReceived(int sig){
 	if(sig == SIGQUIT || sig == SIGTERM) {
 		write(2, "Stopping Server.\n", 17);
+		if(strlen(filename) > 0){
+			int outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
+			if(outfd < 0){
+				remove(filename);
+				outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
+				if(outfd < 0){
+					fprintf(stderr, "Could not open file: %s\n", filename);
+					break;
+				}
+			}
+			write(outfd, "INTERRUPT\n", 10);
+		}
 		_exit(0);
 	}
 }
@@ -46,9 +61,9 @@ void serveClient(int sockfd, int connectionNum){
     memset(buff, 0, RWND*sizeof(buff[0]));
     memset(buffLen, 0, RWND*sizeof(buffLen[0]));
 	int outfd = -1;
-	unsigned int len, n;
+	int len, n;
 	int window = -1;
-	unsigned int seq = rand() % MAXSEQ;
+	int seq = rand() % MAXSEQ;
 	int fin = 0;
 
 	
@@ -66,19 +81,31 @@ void serveClient(int sockfd, int connectionNum){
 		len = sizeof(cliaddr);
 		n = recvfrom(sockfd, (char *)receivedPacket, sizeof(struct packet), MSG_WAITALL,
 				(struct sockaddr *) cliaddr, (socklen_t *) &len);
+		if(n < 1){
+			fprintf(stderr, "Timeout\n");
+			if(window == -1 || outfd < 0){
+				continue;
+			}
+			else{
+				break;
+			}
+		}
 
 		//Testing
-		printf("\nReceived:\n");
+		printf("\nReceived %d:\n", n);
 		printPacket(receivedPacket);
 
 		//Received SYN packet
 		if(receivedPacket->syn != 0){
-			char filename[50];
 			snprintf(filename, 49, "%d.file", connectionNum);
-			outfd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
+			outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
 			if(outfd < 0){
-				fprintf(stderr, "Could not open file: %s\n", filename);
-				break;
+				remove(filename);
+				outfd = open(filename, O_CREAT | O_EXCL | O_WRONLY, S_IRWXU);
+				if(outfd < 0){
+					fprintf(stderr, "Could not open file: %s\n", filename);
+					break;
+				}
 			}
 
 			sendingPacket->syn = 1;
@@ -112,8 +139,8 @@ void serveClient(int sockfd, int connectionNum){
 			int i;
 			for(i = 0; buff[i] != NULL && i < RWND; i++){
 				write(0, testMessage, strlen(testMessage));
-				write(0, receivedPacket->message, buffLen[i]);
-				write(outfd, receivedPacket->message, buffLen[i]);
+				write(0, buff[i], buffLen[i]);
+				write(outfd, buff[i], buffLen[i]);
 				printf("\"\n");
 				window += (buffLen[i]) % (MAXSEQ+1);
 				free(buff[i]);
@@ -133,6 +160,7 @@ void serveClient(int sockfd, int connectionNum){
 			//Packet was FIN
 			if((fin = receivedPacket->fin)){
 				window = (window + 1) % (MAXSEQ+1);
+				filename[0] = 0;
 			}
 		}
 		//Packet out of order
@@ -170,19 +198,20 @@ void serveClient(int sockfd, int connectionNum){
 			(socklen_t) sizeof(struct sockaddr_in));
 	}
 
-	memset(sendingPacket, 0, sizeof(struct packet));
-	sendingPacket->fin = 1;
-	sendingPacket->seqNum = seq;
+	if(fin){
+		memset(sendingPacket, 0, sizeof(struct packet));
+		sendingPacket->fin = 1;
+		sendingPacket->seqNum = seq;
 
-	//Testing
-	printf("\nSending:\n");
-	printPacket(sendingPacket);
+		//Testing
+		printf("\nSending:\n");
+		printPacket(sendingPacket);
 
-	//Send FIN
-	sendto(sockfd, sendingPacket, sizeof(struct packet),  
-		0, (const struct sockaddr *) cliaddr, 
-		(socklen_t) sizeof(struct sockaddr_in));
-	seq++;
+		//Send FIN
+		sendto(sockfd, sendingPacket, sizeof(struct packet),  
+			0, (const struct sockaddr *) cliaddr, 
+			(socklen_t) sizeof(struct sockaddr_in));
+	}
 
 
 	free(sendingPacket);
@@ -195,6 +224,8 @@ int main(int argc, char* argv[]){
 	signal(SIGTERM, signalReceived);
 	signal(SIGQUIT, signalReceived);
 	signal(SIGINT, signalReceived);
+	filename[0] = 0;
+
 	if(argc != 2){
 		fprintf(stderr, "ERROR: usage: %s [port number]\n", argv[0]);
 		exit(1);
@@ -215,9 +246,17 @@ int main(int argc, char* argv[]){
 	}
 
 	//allows sockfd to be reused
-	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == -1){
-	fprintf(stderr, "ERROR setsockopt: %s\n", strerror(errno));
-	exit(1);
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
+		fprintf(stderr, "ERROR setsockopt: %s\n", strerror(errno));
+		exit(1);
+	}
+	//Sets timeout for receiving new data
+	struct timeval timeOut;
+	timeOut.tv_sec = 10;
+	timeOut.tv_usec = 0;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeOut, sizeof(timeOut)) < 0) {
+	    fprintf(stderr, "ERROR setsockopt: %s\n", strerror(errno));
+		exit(1);
 	}
 
 	my_addr.sin_family = AF_INET;
