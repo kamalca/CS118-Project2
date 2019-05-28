@@ -202,7 +202,7 @@ void serveClient(int sockfd, int connectionNum){
 		printPacket(sendingPacket);
 
 		//Send ACK
-		sendto(sockfd, sendingPacket, sizeof(struct packet),  
+		sendto(sockfd, sendingPacket, 12,  
 			0, (const struct sockaddr *) cliaddr, 
 			(socklen_t) sizeof(struct sockaddr_in));
 	}
@@ -217,7 +217,7 @@ void serveClient(int sockfd, int connectionNum){
 		printPacket(sendingPacket);
 
 		//Send FIN
-		sendto(sockfd, sendingPacket, sizeof(struct packet),  
+		sendto(sockfd, sendingPacket, 12,  
 			0, (const struct sockaddr *) cliaddr, 
 			(socklen_t) sizeof(struct sockaddr_in));
 	}
