@@ -84,18 +84,17 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         
         //handle timeouts
         if (window.len > 0){
-        struct timeval diff = getTimer(&window);
-        if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
-            struct packet* message = pop(&window);
-            if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
-                fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
-                free(message);
-                delete(&window);
-                return -1;
-            }
+            struct timeval diff = getTimer(&window);
+            if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
+                struct packet* message = top(&window);
+                if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
+                    fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
+                    free(message);
+                    delete(&window);
+                    return -1;
+                }
             printsent(message, cwnd, ssthresh);
-            push(&window, message);
-        }
+            }
         }
         
         //creates packet from file and sends
