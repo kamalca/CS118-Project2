@@ -2,17 +2,18 @@
 #define QUEUE
 
 #include "packet.h"
-#include <time.h>
+#include <sys/time.h>
+#include <stdlib.h>
 
 struct node {
 	struct packet* p;
 	struct timeval tv;
-	node* next;
-}
+	struct node* next;
+};
 
 typedef struct queue {
-	node* head;
-	node* tail;
+	struct node* head;
+	struct node* tail;
 	int len;
 } Queue;
 
@@ -23,17 +24,17 @@ void init(Queue* q){
 }
 
 void push(Queue* q, struct packet* p){
-	node n;
-	n->packet = p;
-	gettimeofday(&(n->tv), 0);
-	n->next = NULL;
+	struct node n;
+	n.p = p;
+	gettimeofday(&(n.tv), 0);
+	n.next = NULL;
 	if(q->len == 0){
-		q->head = n;
-		q->tail = n;
+		q->head = &n;
+		q->tail = &n;
 	}
 	else{
-		q->tail->next = n;
-		q->tail = n;
+		q->tail->next = &n;
+		q->tail = &n;
 	}
 	q->len++;
 }
@@ -42,18 +43,19 @@ struct packet* pop(Queue* q){
 	if(q->head == NULL){
 		return NULL;
 	}
-	struct packet* p = q->head->packet;
+	struct packet* p = q->head->p;
 	q->head = q->head->next;
 	q->len--;
 	return p;
 }
 
 void delete(Queue* q){
-	struct packet p;
+	struct packet* p;
 	while((p = pop(q))){
 		free(p);
 		p = NULL;
 	}
+	init(q);
 }
 
 struct timeval getTimer(Queue* q){
@@ -64,3 +66,4 @@ struct timeval getTimer(Queue* q){
 	return diff;
 }
 
+#endif
