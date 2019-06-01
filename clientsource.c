@@ -202,7 +202,7 @@ int main(int argc, char* argv[]){
     char* filename;
 
     if (argc != 4){
-        fprintf(stderr, "Incorrect number of arguments.\nclient should be invoked with three arguments as\n./client <HOSTNAME-OR-IP> <PORT> <FILENAME>\n");
+        fprintf(stderr, "ERROR: Incorrect number of arguments.\nusage: %s <HOSTNAME> <PORT> <FILENAME>\n", argv[0]);
         exit(1);
     }
 
@@ -211,21 +211,21 @@ int main(int argc, char* argv[]){
     else{
         servername = iptolong(argv[1]);
         if (servername == -1){
-            fprintf(stderr, "Improper hostname\n");
+            fprintf(stderr, "ERROR: Improper hostname\n");
             exit(1);
         }
     }
 
     port = stringtoint(argv[2]);
     if (port < 0 || port > 65535){
-        fprintf(stderr, "Improper port number\n");
+        fprintf(stderr, "ERROR: Improper port number\n");
         exit(1);
     }
 
     filename = argv[3];
     int filefd = open(filename, O_RDONLY);
     if (filefd < 0){
-        fprintf(stderr, "Couldn't open file %s, %s\n", filename, strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't open file %s: %s\n", filename, strerror(errno));
         exit(1);
     }
 
