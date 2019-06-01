@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include "packet.h"
+#include "queue.h"
 #include <errno.h>
 #include <pthread.h>
 #define PAYLOAD 512
@@ -67,22 +68,43 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned s
 
 int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
     //this function will be used to split the file into smaller sections and send to server
-    int numRead, offset = 0, cwnd = 512, ssthresh = 5120, inprogress = 0, first = 1, sendbase = *seqNum, nextseq = *seqNum;
+    
+    int numRead, cwnd = 512, ssthresh = 5120, duplicates = 0;
+    char first = 1, done = 0;
     struct packet ack;
-    fprintf(stderr, "transmit\n");
-    //initialize queue
+    
+    //queue contains all packets that have been sent but not yet acknowled
+    Queue window;
+    init(&window);
     
     //main loop, alternates between sending and receiving loops
     while(1){
         
-        //send loop
-        while(inprogress < cwnd){ //(queue.size < cwnd / 512)
-            //go through queue and check times, retransmit?
+        //handle duplicate acks
+        
+        //handle timeouts
+        struct timeval diff = getTimer(&window);
+        if (diff.tv_sec > 1 || diff.tv_usec/1000 > 500){
+            struct packet* message = pop(&window);
+            if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
+                fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
+                free(message);
+                delete(&window);
+                return -1;
+            }
+            printsent(message);
+            push(&window, message);
+        }
+        
+        //creates packet from file and sends
+        while(window.len < cwnd / 512 && !done){
             
             //prepare message
-            struct packet* message = (packet*) malloc(sizeof(packet));
-            if (first)
+            struct packet* message = (struct packet*) malloc(sizeof(struct packet));
+            if (first){
                 message->ack = 1;
+                first = 0;
+            }
             else
                 message->ack = 0;
             message->syn = message->fin = 0;
@@ -90,49 +112,64 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             message->seqNum = *seqNum;
             message->ackNum = *ackNum;
             
-            numRead = pread(file, message->message, PAYLOAD, offset);
+            numRead = read(file, message->message, PAYLOAD);
             if (numRead == -1){
                 fprintf(stderr, "Error reading file, %s\n", strerror(errno));
                 free(message);
-                //delete queue
+                delete(&window);
                 return -1;
             }
+            if (numRead == 0){
+                done = 1;
+                break;
+            } else if (numRead < PAYLOAD)
+                done = 1;
             
+            //send message
             if(sendto(sockfd, (void*) message, 12 + numRead, 0, address, sizeof(*address)) == -1){
                 fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
                 free(message);
-                //delete queue
+                delete(&window);
                 return -1;
             }
-            //push message to queue
             printsent(message, cwnd, ssthresh);
+            push(&window, message);
         }
         
         //receive loop
         while(1){
-            /*receive ack from server
-             if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
-             fprintf(stderr, "Couldn't receive ack from server, %i\n", errno);
-             return -1;
-             }
-             printreceived(&ack, cwnd, ssthresh);
-             
-             //check server ack
-             (*seqNum) += numRead;
-             if (ack.ackNum != *seqNum){
-             fprintf(stderr, "Wrong ack ackNum, expected ackNum %i\n", *seqNum);
-             return -1;
-             } printf("seqNum = %i\n", *seqNum);
-             if (ack.seqNum != *ackNum){
-             fprintf(stderr, "Wrong ack seqNum, expected seqNum %i\n", *ackNum);
-             return -1;
-             }*/
+            //this loop only breaks when there are no more packets in the stream to read
+            
+            //receive ack from server
+            if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
+                if (errno == EAGAIN || errno == EWOULDBLOCK){//nothing to read
+                    //should there be more?
+                    break;
+                }
+                else{
+                    fprintf(stderr, "Couldn't receive ack from server, %i\n", errno);
+                    return -1;
+                }
+            }
+            //check sender?
+            printreceived(&ack, cwnd, ssthresh);
+            
+            unsigned short topSeqNum = getSeq(&window);
+            while(1){
+                if (ack.ackNum > topSeqNum){
+                    struct packet* message = pop(&window);
+                    free(message);
+                }
+                else{
+                    duplicates++;
+                    break;
+                }
+            }
         }
-        offset += numRead;
-        message.ack = 0;
+        if (window.len == 0 && done)
+            return 0;
     }
     
-    fprintf(stderr, "transmission complete\n\n\n");
     return 0;
 }
 
