@@ -83,8 +83,9 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         //handle duplicate acks
         
         //handle timeouts
+        if (window.len > 0){
         struct timeval diff = getTimer(&window);
-        if (diff.tv_sec > 1 || diff.tv_usec/1000 > 500){
+        if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
             struct packet* message = pop(&window);
             if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
                 fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
@@ -92,8 +93,9 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 delete(&window);
                 return -1;
             }
-            printsent(message);
+            printsent(message, cwnd, ssthresh);
             push(&window, message);
+        }
         }
         
         //creates packet from file and sends
@@ -154,16 +156,15 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             //check sender?
             printreceived(&ack, cwnd, ssthresh);
             
-            unsigned short topSeqNum = getSeq(&window);
-            while(1){
-                if (ack.ackNum > topSeqNum){
+            //check ackNums
+            if (ack.ackNum == getSeq(&window))
+                duplicates++;
+            else{
+                while(ack.ackNum > getSeq(&window)){
                     struct packet* message = pop(&window);
                     free(message);
                 }
-                else{
-                    duplicates++;
-                    break;
-                }
+                duplicates = 0;
             }
         }
         if (window.len == 0 && done)
@@ -298,7 +299,8 @@ int main(int argc, char* argv[]){
     //timeout setting
     struct timeval timeout = {10, 0};
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
-    fcntl(sockfd, F_SETFD, O_NONBLOCK);
+    int flags = fcntl(sockfd, F_GETFL, 0);
+    fcntl(sockfd, F_SETFD, flags | O_NONBLOCK);
     
     //create signal handler for SIGINT and SIGTERM, use globals
     
