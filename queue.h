@@ -66,4 +66,8 @@ struct timeval getTimer(Queue* q){
 	return diff;
 }
 
+unsigned short getSeq(Queue* q){
+	return q->head->p->seqNum;
+}
+
 #endif
