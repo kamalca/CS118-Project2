@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include "packet.h"
 #include <errno.h>
+#include <pthread.h>
 #define PAYLOAD 512
 
 
@@ -23,7 +24,44 @@ void printreceived(struct packet* message, int cwnd, int ssthresh){
 
 
 
-//insert fin function here?
+int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
+    //use fin to close connection
+    struct packet message, ack;
+    memset(message.zeros, 0, sizeof(message.zeros));
+    message.fin = 1;
+    message.seqNum = *seqNum;
+    message.ackNum = 0;
+    int cwnd = 0, ssthresh = 0;
+    
+    if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
+        fprintf(stderr, "Couldn't send fin to server, %s\n", strerror(errno));
+        return -1;
+    } fprintf(stderr, "fin\n");
+    printsent(&message, cwnd, ssthresh);
+    
+    //receive finack
+    if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
+        fprintf(stderr, "Couldn't receive finack from server, %s\n", strerror(errno));
+        return -1;
+    }
+    printreceived(&ack, cwnd, ssthresh);
+    
+    //recieve fin
+    if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
+        fprintf(stderr, "Couldn't receive fin from server, %s\n", strerror(errno));
+        return -1;
+    }
+    printreceived(&message, cwnd, ssthresh);
+    
+    //send finack
+    if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
+        fprintf(stderr, "Couldn't send finack to server, %s\n", strerror(errno));
+        return -1;
+    }
+    printsent(&ack, cwnd, ssthresh);
+    fprintf(stderr, "fin complete\n\n\n");
+    return 0;
+}
 
 
 
@@ -34,7 +72,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
     message.ack = 1;
     message.syn = message.fin = 0;
     memset(message.zeros, 0, sizeof(message.zeros));
-    
+    fprintf(stderr, "transmit\n");
     do{//use alarm() function with signal handler for SIGALRM, also hinted at using C++ std::chrono
         numRead = pread(file, message.message, PAYLOAD, offset);
 
@@ -74,37 +112,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         offset += numRead;
         message.ack = 0;
     }while (numRead == PAYLOAD);
-
-    //use fin to close connection
-    message.fin = 1;
-    message.seqNum = *seqNum;
-    if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
-        fprintf(stderr, "Couldn't send fin to server, %s\n", strerror(errno));
-        return -1;
-    } fprintf(stderr, "\n\nfin\n");
-    printsent(&message, cwnd, ssthresh);
-    
-    //receive finack
-    if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
-        fprintf(stderr, "Couldn't receive finack from server, %s\n", strerror(errno));
-        return -1;
-    }
-    printreceived(&ack, cwnd, ssthresh);
-    
-    //recieve fin
-    if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
-        fprintf(stderr, "Couldn't receive fin from server, %s\n", strerror(errno));
-        return -1;
-    }
-    printreceived(&message, cwnd, ssthresh);
-    
-    //send finack
-    if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
-        fprintf(stderr, "Couldn't send finack to server, %s\n", strerror(errno));
-        return -1;
-    }
-    printsent(&ack, cwnd, ssthresh);
-    fprintf(stderr, "fin complete\n\n\n");
+    fprintf(stderr, "transmission complete\n\n\n");
     return 0;
 }
 
@@ -141,7 +149,7 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
     }
 
     (*seqNum)++;
-    fprintf(stderr, "handshake complete, seqNum = %i, ackNum = %i\n\n\n", *seqNum, *ackNum);
+    fprintf(stderr, "handshake complete\n\n\n");
     return 0;
 }
 
@@ -233,10 +241,11 @@ int main(int argc, char* argv[]){
     //timeout setting
     struct timeval timeout = {10, 0};
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
+    fcntl(sockfd, F_SETFD, O_NONBLOCK);
 
     //create signal handler for SIGINT and SIGTERM, use globals
 
-    //do handshake
+    //handshake
     if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
         fprintf(stderr, "Handshake failed\n");
         close(sockfd);
@@ -252,7 +261,13 @@ int main(int argc, char* argv[]){
         exit(1);
     }
     
-    //fin?
+    //fin
+    if (fin(sockfd, addr, &seqNum, &ackNum) == -1){
+        fprintf(stderr, "Fin failed\n");
+        close(sockfd);
+        close(filefd);
+        exit(1);
+    }
 
     //closing socket
     close(sockfd);
