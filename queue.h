@@ -5,9 +5,11 @@
 #include <sys/time.h>
 #include <stdlib.h>
 
+//A linked list queue implementation specialized for the client needs
+
 struct node {
 	struct packet* p;
-	struct timeval tv;
+	struct timeval tv; //Transmission time
 	struct node* next;
 };
 
@@ -58,6 +60,7 @@ void delete(Queue* q){
 	init(q);
 }
 
+//Returns the time since first packet was transmitted
 struct timeval getTimer(Queue* q){
 	struct timeval now;
 	struct timeval diff;
@@ -66,10 +69,12 @@ struct timeval getTimer(Queue* q){
 	return diff;
 }
 
+//Get the sequence number of the first packet (for comparing with received ACKs)
 unsigned short getSeq(Queue* q){
 	return q->head->p->seqNum;
 }
 
+//Updates the time that the first packet was transmitted
 void resetTimer(Queue* q){
 	gettimeofday(&(q->head->tv), 0);
 }
