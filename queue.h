@@ -74,6 +74,15 @@ struct timeval getTimer(Queue* q){
 	return diff;
 }
 
+struct packet* top(Queue* q){
+	if(q->head == NULL){
+		return NULL;
+	}
+	else{
+		return q->head->p;
+	}
+}
+
 //Get the sequence number of the first packet (for comparing with received ACKs)
 unsigned short getSeq(Queue* q){
 	return q->head->p->seqNum;
