@@ -96,7 +96,7 @@ void serveClient(int sockfd, int connectionNum){
 		}
 
 		//Testing
-		printf("\nReceived %d:\n", n);
+		printf("\nReceived:\n", n);
 		printPacket(receivedPacket);
 
 		//Received SYN packet
