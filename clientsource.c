@@ -92,7 +92,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 delete(&window);
                 return -1;
             }
-            printsent(message);
+            printsent(message, cwnd, ssthresh);
             push(&window, message);
         }
         
@@ -147,7 +147,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                     break;
                 }
                 else{
-                    fprintf(stderr, "Couldn't receive ack from server, %i\n", errno);
+                    fprintf(stderr, "Couldn't receive ack from server, %s\n", strerror(errno));
                     return -1;
                 }
             }
