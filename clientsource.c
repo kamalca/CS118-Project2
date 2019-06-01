@@ -9,9 +9,27 @@
 #include <errno.h>
 #define PAYLOAD 512
 
+
+
+void printsent(struct packet* message, int cwnd, int ssthresh){
+    fprintf(stderr, "SEND %i %i %i %i %i %i %i\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack, message->syn, message->fin);
+}
+
+
+
+void printreceived(struct packet* message, int cwnd, int ssthresh){
+    fprintf(stderr, "RECV %i %i %i %i %i %i %i\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack, message->syn, message->fin);
+}
+
+
+
+//insert fin function here?
+
+
+
 int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
     //this function will be used to split the file into smaller sections and send to server
-    int numRead, offset = 0;
+    int numRead, offset = 0, cwnd = 512, ssthresh = 10240;
     struct packet message, ack;
     message.ack = 1;
     message.syn = message.fin = 0;
@@ -25,7 +43,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             return -1;
         }
 
-        write(1, message.message, numRead);//for debugging purposes
+        //write(1, message.message, numRead);//for debugging purposes
         message.seqNum = *seqNum;
         message.ackNum = *ackNum;
 
@@ -33,21 +51,21 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
             return -1;
         }
-        printf("\nSending packet with seqNum %i and ackNum %i\n", *seqNum, *ackNum);
+        printsent(&message, cwnd, ssthresh);
 
         //receive ack from server
         if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
             fprintf(stderr, "Couldn't receive ack from server, %i\n", errno);
             return -1;
         }
-        printf("\nReceived packet with seqNum %i and ackNum %i\n", ack.seqNum, ack.ackNum);
-
+        printreceived(&ack, cwnd, ssthresh);
+        
         //check server ack
         (*seqNum) += numRead;
         if (ack.ackNum != *seqNum){
             fprintf(stderr, "Wrong ack ackNum, expected ackNum %i\n", *seqNum);
             return -1;
-        }
+        } printf("seqNum = %i\n", *seqNum);
         if (ack.seqNum != *ackNum){
             fprintf(stderr, "Wrong ack seqNum, expected seqNum %i\n", *ackNum);
             return -1;
@@ -59,33 +77,41 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
 
     //use fin to close connection
     message.fin = 1;
+    message.seqNum = *seqNum;
     if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
         fprintf(stderr, "Couldn't send fin to server, %s\n", strerror(errno));
         return -1;
-    } printf("sent fin\n");
+    } fprintf(stderr, "\n\nfin\n");
+    printsent(&message, cwnd, ssthresh);
     
     //receive finack
     if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
         fprintf(stderr, "Couldn't receive finack from server, %s\n", strerror(errno));
         return -1;
-    } printf("received finack\n");
+    }
+    printreceived(&ack, cwnd, ssthresh);
     
     //recieve fin
     if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
         fprintf(stderr, "Couldn't receive fin from server, %s\n", strerror(errno));
         return -1;
-    } printf("received fin\n");
+    }
+    printreceived(&message, cwnd, ssthresh);
     
     //send finack
     if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
         fprintf(stderr, "Couldn't send finack to server, %s\n", strerror(errno));
         return -1;
-    } printf("sent finack\n");
-    
+    }
+    printsent(&ack, cwnd, ssthresh);
+    fprintf(stderr, "fin complete\n\n\n");
     return 0;
 }
 
+
+
 int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
+    //creates handshake with server specified by address parameter
 
     *seqNum = rand() % 25600; //assigning random sequence number
 
@@ -97,7 +123,8 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
         fprintf(stderr, "Couldn't send SYN to server, %s\n", strerror(errno));
         return -1;
     }
-    printf("hand shaken with seqNum %i\n", *seqNum);
+    fprintf(stderr, "handshake\n");
+    printsent(&syn, 0, 0);
 
     //wait for ack
     if (recvfrom(sockfd, (void*) &synack, 12, 0, NULL, 0) == -1){
@@ -106,7 +133,7 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
     }
     if (synack.syn != 1)
         return -1;
-    printf("synack received with ackNum %i, server seqNum %i\n", synack.ackNum, synack.seqNum);
+    printreceived(&synack, 0, 0);
     *ackNum = synack.seqNum + 1;
     if (synack.ackNum != *seqNum + 1){
         fprintf(stderr, "synack returned incorrect ack number\n");
@@ -114,11 +141,14 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
     }
 
     (*seqNum)++;
-    printf("handshake complete, seqNum %i, ackNum %i\n", *seqNum, *ackNum);
+    fprintf(stderr, "handshake complete, seqNum = %i, ackNum = %i\n\n\n", *seqNum, *ackNum);
     return 0;
 }
 
+
+
 long iptolong(char* ip){
+    //converts string ip in format x.x.x.x to a long integer
     int i = 0, a = 0;
     long result = 0;
     while (ip[i] != 0){
@@ -140,7 +170,10 @@ long iptolong(char* ip){
     return result;
 }
 
+
+
 int stringtoint(char* string){
+    //converts a string to the int it represents
     int i, size = strlen(string), number = 0;
     for (i = 0; i < size; i++){
         number *= 10;
@@ -150,6 +183,8 @@ int stringtoint(char* string){
     }
     return number;
 }
+
+
 
 int main(int argc, char* argv[]){
 
@@ -216,6 +251,8 @@ int main(int argc, char* argv[]){
         close(filefd);
         exit(1);
     }
+    
+    //fin?
 
     //closing socket
     close(sockfd);
