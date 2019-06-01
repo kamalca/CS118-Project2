@@ -70,4 +70,8 @@ unsigned short getSeq(Queue* q){
 	return q->head->p->seqNum;
 }
 
+void resetTimer(Queue* q){
+	gettimeofday(&(q->head->tv), 0);
+}
+
 #endif
