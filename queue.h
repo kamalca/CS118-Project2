@@ -65,6 +65,11 @@ struct timeval getTimer(Queue* q){
 	struct timeval now;
 	struct timeval diff;
 	gettimeofday(&now, 0);
+	if(q->len == 0){
+		diff.tv_sec = 0;
+		diff.tv_usec = 0;
+		return diff;
+	}
 	timersub(&(q->head->tv), &now, &diff);
 	return diff;
 }
