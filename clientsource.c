@@ -25,6 +25,15 @@ void printreceived(struct packet* message, int cwnd, int ssthresh){
 
 
 
+unsigned short max(unsigned short a, unsigned short b){
+    if (a > b)
+        return a;
+    else
+        return b;
+}
+
+
+
 int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
     //use fin to close connection
     struct packet message, ack;
@@ -93,7 +102,9 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                     delete(&window);
                     return -1;
                 }
-            printsent(message, cwnd, ssthresh);
+                printsent(message, cwnd, ssthresh);
+                //ssthresh = max (cwnd / 2, 1024)
+                //cwnd = 512
             }
         }
         
@@ -135,10 +146,12 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             }
             printsent(message, cwnd, ssthresh);
             push(&window, message);
+            
         }
         
         //receive loop
         while(1){
+            
             //this loop only breaks when there are no more packets in the stream to read
             
             //receive ack from server
@@ -155,15 +168,24 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             //check sender?
             printreceived(&ack, cwnd, ssthresh);
             
-            //check ackNums
-            if (ack.ackNum == getSeq(&window))
-                duplicates++;
-            else{
-                while(ack.ackNum > getSeq(&window)){
-                    struct packet* message = pop(&window);
-                    free(message);
+            //congestion avoidance
+            //if (cwnd < ssthresh)
+            //  cwnd += 512;
+            //else
+            //  cwnd += (512 * 512) / cwnd;
+            
+            //handle ackNums
+            if (window.len > 0){
+                if (ack.ackNum == getSeq(&window)){
+                    duplicates++;
                 }
-                duplicates = 0;
+                else{
+                    while(ack.ackNum > getSeq(&window)){
+                        struct packet* message = pop(&window);
+                        free(message);
+                    }
+                    duplicates = 0;
+                }
             }
         }
         if (window.len == 0 && done)
