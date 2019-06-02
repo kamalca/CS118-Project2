@@ -27,9 +27,9 @@ void printreceived(struct packet* message, int cwnd, int ssthresh){
 
 unsigned short max(unsigned short a, unsigned short b){
     if (a > b)
-        return a;
+    return a;
     else
-        return b;
+    return b;
 }
 
 
@@ -109,7 +109,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         }
         
         //creates packet from file and sends
-        while(window.len < cwnd / 512 && !done){
+        if(window.len < cwnd / 512 && !done){
             
             //prepare message
             struct packet* message = (struct packet*) malloc(sizeof(struct packet));
@@ -118,7 +118,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 first = 0;
             }
             else
-                message->ack = 0;
+            message->ack = 0;
             message->syn = message->fin = 0;
             memset(message->zeros, 0, sizeof(message->zeros));
             message->seqNum = *seqNum;
@@ -135,7 +135,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 done = 1;
                 break;
             } else if (numRead < PAYLOAD)
-                done = 1;
+            done = 1;
             
             //send message
             if(sendto(sockfd, (void*) message, 12 + numRead, 0, address, sizeof(*address)) == -1){
@@ -149,50 +149,48 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             
         }
         
-        //receive loop
-        while(1){
-            
-            //this loop only breaks when there are no more packets in the stream to read
-            
-            //receive ack from server
-            if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
-                if (errno == EAGAIN || errno == EWOULDBLOCK){//nothing to read
-                    //should there be more?
-                    break;
-                }
-                else{
-                    fprintf(stderr, "Couldn't receive ack from server, %s\n", strerror(errno));
-                    return -1;
-                }
+        //receive
+        //this loop continues when there are no more packets in the stream to read
+        
+        //receive ack from server
+        if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
+            if (errno == EAGAIN || errno == EWOULDBLOCK){//nothing to read
+                //should there be more?
+                continue;
             }
-            //check sender?
-            printreceived(&ack, cwnd, ssthresh);
-            
-            //congestion avoidance
-            //if (cwnd < ssthresh)
-            //  cwnd += 512;
-            //else
-            //  cwnd += (512 * 512) / cwnd;
-            
-            //handle ackNums
-            if (window.len > 0){
-                if (ack.ackNum == getSeq(&window)){
-                    duplicates++;
-                }
-                else{
-                    while(ack.ackNum > getSeq(&window)){
-                        struct packet* message = pop(&window);
-                        free(message);
-                    }
-                    duplicates = 0;
-                }
+            else{
+                fprintf(stderr, "Couldn't receive ack from server, %s\n", strerror(errno));
+                return -1;
             }
         }
-        if (window.len == 0 && done)
-            return 0;
+        //check sender?
+        printreceived(&ack, cwnd, ssthresh);
+        
+        //congestion avoidance
+        //if (cwnd < ssthresh)
+        //  cwnd += 512;
+        //else
+        //  cwnd += (512 * 512) / cwnd;
+        
+        //handle ackNums
+        if (window.len > 0){
+            if (ack.ackNum == getSeq(&window)){
+                duplicates++;
+            }
+            else{
+                while(ack.ackNum > getSeq(&window)){
+                    struct packet* message = pop(&window);
+                    free(message);
+                }
+                duplicates = 0;
+            }
+        }
     }
-    
+    if (window.len == 0 && done)
     return 0;
+}
+
+return 0;
 }
 
 
