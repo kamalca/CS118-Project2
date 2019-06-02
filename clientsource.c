@@ -185,12 +185,12 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 duplicates = 0;
             }
         }
+        
+        if (window.len == 0 && done)
+        return 0;
     }
-    if (window.len == 0 && done)
+    
     return 0;
-}
-
-return 0;
 }
 
 
