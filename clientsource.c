@@ -14,13 +14,13 @@
 
 
 void printsent(struct packet* message, int cwnd, int ssthresh){
-    fprintf(stderr, "SEND %i %i %i %i %s %s %s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? "ACK" : "", message->syn ? "SYN" : "", message->fin ? "FIN" : "");
+    printf("SEND %i %i %i %i %s %s %s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? "ACK" : "", message->syn ? "SYN" : "", message->fin ? "FIN" : "");
 }
 
 
 
 void printreceived(struct packet* message, int cwnd, int ssthresh){
-    fprintf(stderr, "RECV %i %i %i %i %s %s %s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? "ACK" : "", message->syn ? "SYN" : "", message->fin ? "FIN" : "");
+    printf("RECV %i %i %i %i %s %s %s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? "ACK" : "", message->syn ? "SYN" : "", message->fin ? "FIN" : "");
 }
 
 
@@ -44,28 +44,28 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned s
     int cwnd = 0, ssthresh = 0;
     
     if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
-        fprintf(stderr, "Couldn't send fin to server, %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't send fin to server, %s\n", strerror(errno));
         return -1;
     } 
     printsent(&message, cwnd, ssthresh);
     
     //receive finack
     if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
-        fprintf(stderr, "Couldn't receive finack from server, %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't receive finack from server, %s\n", strerror(errno));
         return -1;
     }
     printreceived(&ack, cwnd, ssthresh);
     
     //recieve fin
     if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
-        fprintf(stderr, "Couldn't receive fin from server, %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't receive fin from server, %s\n", strerror(errno));
         return -1;
     }
     printreceived(&message, cwnd, ssthresh);
     
     //send finack
     if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
-        fprintf(stderr, "Couldn't send finack to server, %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't send finack to server, %s\n", strerror(errno));
         return -1;
     }
     printsent(&ack, cwnd, ssthresh);
@@ -88,7 +88,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
     //main loop, alternates between sending and receiving loops
     while(1){
         
-        //handle duplicate acks
+        //TODO: handle duplicate acks
         
         //handle timeouts
         if (window.len > 0){
@@ -96,7 +96,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
                 struct packet* message = top(&window);
                 if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
-                    fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
+                    fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
                     free(message);
                     delete(&window);
                     return -1;
@@ -125,7 +125,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             
             numRead = read(file, message->message, PAYLOAD);
             if (numRead == -1){
-                fprintf(stderr, "Error reading file, %s\n", strerror(errno));
+                fprintf(stderr, "ERROR: Couldn't read file, %s\n", strerror(errno));
                 free(message);
                 delete(&window);
                 return -1;
@@ -138,7 +138,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             
             //send message
             if(sendto(sockfd, (void*) message, 12 + numRead, 0, address, sizeof(*address)) == -1){
-                fprintf(stderr, "Couldn't send packet to server, %s\n", strerror(errno));
+                fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
                 free(message);
                 delete(&window);
                 return -1;
@@ -158,7 +158,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 continue;
             }
             else{
-                fprintf(stderr, "Couldn't receive ack from server, %s\n", strerror(errno));
+                fprintf(stderr, "ERROR: Couldn't receive ack from server, %s\n", strerror(errno));
                 return -1;
             }
         }
@@ -205,14 +205,14 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
     
     //send syn
     if (sendto(sockfd, (void*) &syn, 12, 0, address, size) == -1){
-        fprintf(stderr, "Couldn't send SYN to server, %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't send SYN to server, %s\n", strerror(errno));
         return -1;
     }
     printsent(&syn, 0, 0);
     
     //wait for ack
     if (recvfrom(sockfd, (void*) &synack, 12, 0, NULL, 0) == -1){
-        fprintf(stderr, "Couldn't receive SYNACK from server, %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't receive SYNACK from server, %s\n", strerror(errno));
         return -1;
     }
     if (synack.syn != 1)
@@ -241,7 +241,7 @@ long iptolong(char* ip){
             result += a;
             a = 0;
         } else if (ip[i] < '0'|| ip[i] > '9'){
-            fprintf(stderr, "improper ip address\n");
+            fprintf(stderr, "ERROR: improper ip address\n");
             return -1;
         } else
         a += ip[i] - '0';
@@ -319,11 +319,9 @@ int main(int argc, char* argv[]){
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFD, flags | O_NONBLOCK);
     
-    //create signal handler for SIGINT and SIGTERM, use globals
-    
     //handshake
     if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
-        fprintf(stderr, "Handshake failed\n");
+        fprintf(stderr, "Handshake failed. Quitting program.\n");
         close(sockfd);
         close(filefd);
         exit(1);
@@ -331,7 +329,7 @@ int main(int argc, char* argv[]){
     
     //transmit file
     if (transmit(filefd, sockfd, addr, &seqNum, &ackNum) == -1){
-        fprintf(stderr, "Transmission failed\n");
+        fprintf(stderr, "Transmission failed. Quitting program.\n");
         close(sockfd);
         close(filefd);
         exit(1);
@@ -339,7 +337,7 @@ int main(int argc, char* argv[]){
     
     //fin
     if (fin(sockfd, addr, &seqNum, &ackNum) == -1){
-        fprintf(stderr, "Fin failed\n");
+        fprintf(stderr, "Fin failed. Quitting program.\n");
         close(sockfd);
         close(filefd);
         exit(1);
