@@ -14,13 +14,13 @@
 
 
 void printsent(struct packet* message, int cwnd, int ssthresh){
-    fprintf(stderr, "SEND %i %i %i %i %i %i %i\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack, message->syn, message->fin);
+    fprintf(stderr, "SEND %i %i %i %i %s %s %s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? "ACK" : "", message->syn ? "SYN" : "", message->fin ? "FIN" : "");
 }
 
 
 
 void printreceived(struct packet* message, int cwnd, int ssthresh){
-    fprintf(stderr, "RECV %i %i %i %i %i %i %i\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack, message->syn, message->fin);
+    fprintf(stderr, "RECV %i %i %i %i %s %s %s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? "ACK" : "", message->syn ? "SYN" : "", message->fin ? "FIN" : "");
 }
 
 
