@@ -26,17 +26,17 @@ void init(Queue* q){
 }
 
 void push(Queue* q, struct packet* p){
-	struct node n;
-	n.p = p;
-	gettimeofday(&(n.tv), 0);
-	n.next = NULL;
+	struct node* n = malloc(sizeof(struct node));
+	n->p = p;
+	gettimeofday(&(n->tv), 0);
+	n->next = NULL;
 	if(q->len == 0){
-		q->head = &n;
-		q->tail = &n;
+		q->head = n;
+		q->tail = n;
 	}
 	else{
-		q->tail->next = &n;
-		q->tail = &n;
+		q->tail->next = n;
+		q->tail = n;
 	}
 	q->len++;
 }
@@ -46,6 +46,7 @@ struct packet* pop(Queue* q){
 		return NULL;
 	}
 	struct packet* p = q->head->p;
+	free(q->head);
 	q->head = q->head->next;
 	q->len--;
 	return p;
@@ -75,7 +76,7 @@ struct timeval getTimer(Queue* q){
 }
 
 struct packet* top(Queue* q){
-	if(q->head == NULL){
+	if(q->len == 0){
 		return NULL;
 	}
 	else{
@@ -84,7 +85,10 @@ struct packet* top(Queue* q){
 }
 
 //Get the sequence number of the first packet (for comparing with received ACKs)
-unsigned short getSeq(Queue* q){
+int getSeq(Queue* q){
+	if(q->len == 0){
+		return -1;
+	}
 	return q->head->p->seqNum;
 }
 
