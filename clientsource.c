@@ -145,8 +145,8 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 return -1;
             }
             printsent(message, cwnd, ssthresh);
+            *seqNum += numRead;
             push(&window, message);
-            
         }
         
         //receive
@@ -173,19 +173,18 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         //  cwnd += (512 * 512) / cwnd;
         
         //handle ackNums
-        if (window.len > 0){
+        if (window.len > 0){ 
             if (ack.ackNum == getSeq(&window)){
                 duplicates++;
             }
             else{
-                while(ack.ackNum > getSeq(&window)){
+                while(window.len > 0 && ack.ackNum > getSeq(&window)){
                     struct packet* message = pop(&window);
                     free(message);
                 }
                 duplicates = 0;
             }
         }
-        
         if (window.len == 0 && done)
         return 0;
     }
