@@ -220,6 +220,18 @@ void serveClient(int sockfd, int connectionNum){
 		sendto(sockfd, sendingPacket, 12,  
 			0, (const struct sockaddr *) cliaddr, 
 			(socklen_t) sizeof(struct sockaddr_in));
+
+		len = sizeof(cliaddr);
+		n = recvfrom(sockfd, (char *)receivedPacket, sizeof(struct packet), MSG_WAITALL,
+				(struct sockaddr *) cliaddr, (socklen_t *) &len);
+		printf("\nReceived:\n");
+		printPacket(receivedPacket);
+		if(n == 12 && receivedPacket->ack == 1){
+			printf("Connection Closed Successfully\n");
+		}
+		else{
+			printf("Connection not propperly closed\n");
+		}
 	}
 
 
