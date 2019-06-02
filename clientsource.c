@@ -46,7 +46,7 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned s
     if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
         fprintf(stderr, "Couldn't send fin to server, %s\n", strerror(errno));
         return -1;
-    } fprintf(stderr, "fin\n");
+    } 
     printsent(&message, cwnd, ssthresh);
     
     //receive finack
@@ -69,7 +69,6 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned s
         return -1;
     }
     printsent(&ack, cwnd, ssthresh);
-    fprintf(stderr, "fin complete\n\n\n");
     return 0;
 }
 
@@ -103,8 +102,8 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                     return -1;
                 }
                 printsent(message, cwnd, ssthresh);
-                //ssthresh = max (cwnd / 2, 1024)
-                //cwnd = 512
+                ssthresh = max (cwnd / 2, 1024);
+                cwnd = 512;
             }
         }
         
@@ -145,7 +144,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 return -1;
             }
             printsent(message, cwnd, ssthresh);
-            *seqNum += numRead;
+            *seqNum = (*seqNum + numRead) % 25601;
             push(&window, message);
         }
         
@@ -167,13 +166,15 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         printreceived(&ack, cwnd, ssthresh);
         
         //congestion avoidance
-        //if (cwnd < ssthresh)
-        //  cwnd += 512;
-        //else
-        //  cwnd += (512 * 512) / cwnd;
+        if (cwnd < 10240){
+            if (cwnd < ssthresh)
+                cwnd += 512;
+            else
+                cwnd += (512 * 512) / cwnd;
+        }
         
         //handle ackNums
-        if (window.len > 0){ 
+        if (window.len > 0){
             if (ack.ackNum == getSeq(&window)){
                 duplicates++;
             }
@@ -197,7 +198,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
 int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
     //creates handshake with server specified by address parameter
     
-    *seqNum = rand() % 25600; //assigning random sequence number
+    *seqNum = rand() % 25601; //assigning random sequence number
     
     struct packet syn = {*seqNum, 0, 0, 1, 0, {0, 0, 0, 0, 0}, {}}, synack;
     socklen_t size = sizeof(struct sockaddr_in);
@@ -207,7 +208,6 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
         fprintf(stderr, "Couldn't send SYN to server, %s\n", strerror(errno));
         return -1;
     }
-    fprintf(stderr, "handshake\n");
     printsent(&syn, 0, 0);
     
     //wait for ack
@@ -225,7 +225,6 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
     }
     
     (*seqNum)++;
-    fprintf(stderr, "handshake complete\n\n\n");
     return 0;
 }
 
