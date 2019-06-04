@@ -34,7 +34,7 @@ unsigned short max(unsigned short a, unsigned short b){
 
 
 
-int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsigned short* ackNum){
+int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
     //use fin to close connection
     struct packet message, ack;
     memset(message.zeros, 0, sizeof(message.zeros));
@@ -175,11 +175,17 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         
         //handle ackNums
         if (window.len > 0){
-            if (ack.ackNum == getSeq(&window)){
+            if (ack.ackNum == getTopSeq(&window)){ //what if no ack arrives
                 duplicates++;
+                /*fast retransmit
+                if (duplicates == 3){
+                    ssthresh = max(cwnd/2, 1024);
+                    cwnd = ssthresh + 1536;
+                    //resend
+                }*/
             }
             else{
-                while(window.len > 0 && ack.ackNum > getSeq(&window)){
+                while(window.len > 0 && (ack.ackNum > getTopSeq(&window) || (getTopSeq(&window) > getBottomSeq(&window) && ack.ackNum <= getBottomSeq(&window) + 512))){
                     struct packet* message = pop(&window);
                     free(message);
                 }
@@ -336,7 +342,7 @@ int main(int argc, char* argv[]){
     }
     
     //fin
-    if (fin(sockfd, addr, &seqNum, &ackNum) == -1){
+    if (fin(sockfd, addr, &seqNum) == -1){
         fprintf(stderr, "Fin failed. Quitting program.\n");
         close(sockfd);
         close(filefd);
