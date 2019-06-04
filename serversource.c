@@ -32,6 +32,13 @@ void printPacket(struct packet* p){
 	printf("Flags: ack %d, syn %d, fin %d\n", p->ack, p->syn, p->fin);
 }
 
+void memCheck(void* p){
+    if(p == NULL){
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+}
+
 void signalReceived(int sig){
 	if(sig == SIGQUIT || sig == SIGTERM) {
 		write(2, "Stopping Server.\n", 17);
@@ -57,6 +64,7 @@ void serveClient(int sockfd, int connectionNum){
 	struct packet* sendingPacket = calloc(1, sizeof(struct packet));
 	struct packet* receivedPacket = calloc(1, sizeof(struct packet));
 	struct sockaddr_in* cliaddr = calloc(1, sizeof(struct sockaddr_in));
+    memCheck(sendingPacket); memCheck(receivedPacket); memCheck(cliaddr);
     char* buff[RWND];
     int buffLen[RWND];
     memset(buff, 0, RWND*sizeof(buff[0]));
@@ -184,10 +192,7 @@ void serveClient(int sockfd, int connectionNum){
 
 			if(buff[i] == NULL){
 				buff[i] = calloc(1, n - 12);
-                if(buff[i] == NULL){
-                    fprintf(stderr, "Out of memory\n");
-                    exit(1);
-                }
+                memCheck(buff[i]);
 				strncpy(buff[i], receivedPacket->message, n - 12);
 				buffLen[i] = n - 12;
 			}
