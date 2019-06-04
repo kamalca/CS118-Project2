@@ -184,6 +184,10 @@ void serveClient(int sockfd, int connectionNum){
 
 			if(buff[i] == NULL){
 				buff[i] = calloc(1, n - 12);
+                if(buff[i] == NULL){
+                    fprintf(stderr, "Out of memory\n");
+                    exit(1);
+                }
 				strncpy(buff[i], receivedPacket->message, n - 12);
 				buffLen[i] = n - 12;
 			}
