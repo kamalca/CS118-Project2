@@ -39,6 +39,7 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
     struct packet message, ack;
     memset(message.zeros, 0, sizeof(message.zeros));
     message.fin = 1;
+    message.ack = message.syn = 0;
     message.seqNum = *seqNum;
     message.ackNum = 0;
     int cwnd = 0, ssthresh = 0;
@@ -185,7 +186,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 }*/
             }
             else{
-                while(window.len > 0 && (ack.ackNum > getTopSeq(&window) || (getTopSeq(&window) > getBottomSeq(&window) && ack.ackNum <= getBottomSeq(&window) + 512))){
+                while(window.len > 0 && (ack.ackNum > getTopSeq(&window) || (getTopSeq(&window) > (getBottomSeq(&window)+512)%25601 && ack.ackNum <= (getBottomSeq(&window) + 512)%25601))){
                     struct packet* message = pop(&window);
                     free(message);
                 }
