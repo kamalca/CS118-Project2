@@ -85,11 +85,19 @@ struct packet* top(Queue* q){
 }
 
 //Get the sequence number of the first packet (for comparing with received ACKs)
-int getSeq(Queue* q){
+int getTopSeq(Queue* q){
 	if(q->len == 0){
 		return -1;
 	}
 	return q->head->p->seqNum;
+}
+
+//Get the sequence number of the last packet (for comparing with received ACKs)
+int getBottomSeq(Queue* q){
+	if(q->len == 0){
+		return -1;
+	}
+	return q->tail->p->seqNum;
 }
 
 //Updates the time that the first packet was transmitted
