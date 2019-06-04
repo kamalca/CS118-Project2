@@ -1,0 +1,4 @@
+Kameron Carr 504988167 
+Kenna Wang 604939143
+
+This project was divided into the server and client. Kameron wrote packet.h, queue.h, and serversource.c. Kenna wrote clientsource.c.
