@@ -156,7 +156,7 @@ void serveClient(int sockfd, int connectionNum){
 				//write(0, buff[i], buffLen[i]);
 				write(outfd, buff[i], buffLen[i]);
 				//printf("\"\n");
-				window += (buffLen[i]) 
+				window += (buffLen[i]);
 				window = window % (MAXSEQ+1);
 				free(buff[i]);
 				buff[i] = NULL;
