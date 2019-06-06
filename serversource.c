@@ -143,7 +143,7 @@ void serveClient(int sockfd, int connectionNum){
 			//write(0, receivedPacket->message, n-12);
 			if(write(outfd, receivedPacket->message, n-12) < 0){
 				fprintf(stderr, "Could not print to fd %d\n", outfd);
-				fprintf(stderr, "Error: %s\n", strerror(errno));
+				fprintf(stderr, "Error %d: %s\n", strerror(errno), errno);
 				exit(1);
 			}
 			//printf("\"\n");
