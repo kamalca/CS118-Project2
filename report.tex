@@ -1,4 +1,7 @@
 \documentclass[12pt]{article}
+
+\usepackage{indentfirst}
+
 \title{CS 118 Project 2 Report}
 \author{Kameron Carr \\ 504988167 \and Kenna Wang \\ 604939143}
 \date{June 7, 2019}
@@ -8,7 +11,33 @@
 \maketitle
 
 \section{Description}
+\subsection{Server}
+First the server sets up a socket at the given port. Then it sets the time out for receiving a packet to be 10 seconds.
+
+Upon receiving the first packet, if it has the SYN flag set then it sets the window variable to be equal to the SEQ num + 1. The window variable represents the next expected SEQ num and the ACK num for outgoing packets.
+
+Once a connection is established by receiving SYN and sending SYN ACK, then all packets received that have the expected SEQ num (==window variable) will be written to the file and window will be updated to reflect the next expected SEQ num. If a packet is received out of order (AKA the expected packet was dropped) then it will be added to a buffer. Upon receiving the expected packet, all sequential packets from the buffer will be written to the file.
+
+If the expected packet has the FIN flag set, the loop to read in packets if broken and a FIN-ACK packet is sent as well as a FIN packet then waits for the last FIN-ACK.
+
+Upon timeout or the connection ending, the same function (serveClient) runs but with a new file name.
+
+Upon receiving a signal from the user, a signal handler is activated that checks for a file being open. If a file is open it rewrites it with the word "INTERRUPT".
+
+\subsection{Client}
+
 
 \section{Difficulties}
+\subsection{Server}
+Having the sequence number wrap back around was the source of many of my problems, but most of them were small syntax errors or small logical errors that were simply hard to catch while debugging.
+
+The second biggest difficulty was that during testing on the virtual machine, allocating space would often fail even though the system had plenty of memory. This was causing SIGSEGV before in put in error checking for all allocations.
+
+Lastly one weird problem was not receiving the entire UDP packet. Sometimes recvfrom would only read a small number of bytes (eg. 8) even though the buffer size is 524 and the client never sent a small packet like that. This problem only existed on the Ubuntu Virtual Machine. We never ran into similar problems when testing locally on our MacOS systems.
+
+\subsection{Client}
+
+
+For the queue data structure a lot of precaution had to be taken to prevent segmentation faults from trying to access values of the queue when the queue was in fact empty.
 
 \end{document}
