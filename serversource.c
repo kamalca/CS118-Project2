@@ -144,6 +144,7 @@ void serveClient(int sockfd, int connectionNum){
 			if(write(outfd, receivedPacket->message, n-12) < 0){
 				fprintf(stderr, "Could not print to fd %d\n", outfd);
 				fprintf(stderr, "Error: %s\n", strerror(errno));
+				exit(1);
 			}
 			//printf("\"\n");
 			window = (receivedPacket->seqNum + n - 12) % (MAXSEQ+1);
@@ -155,7 +156,8 @@ void serveClient(int sockfd, int connectionNum){
 				//write(0, buff[i], buffLen[i]);
 				write(outfd, buff[i], buffLen[i]);
 				//printf("\"\n");
-				window += (buffLen[i]) % (MAXSEQ+1);
+				window += (buffLen[i]) 
+				window = window % (MAXSEQ+1);
 				free(buff[i]);
 				buff[i] = NULL;
 				buffLen[i] = 0;
@@ -246,6 +248,7 @@ void serveClient(int sockfd, int connectionNum){
 	free(receivedPacket);
 	free(cliaddr);
 	close(outfd);
+	outfd = -1;
 }
 
 int main(int argc, char* argv[]){
