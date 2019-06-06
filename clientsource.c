@@ -163,32 +163,49 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 return -1;
             }
         }
+        if(ack.ack == 0){
+                fprintf(stderr, "ERROR: Packet is not an ACK\n");
+        }
         //check sender?
         printreceived(&ack, cwnd, ssthresh);
         
-        //congestion avoidance
-        if (cwnd < 10240){
-            if (cwnd < ssthresh)
-                cwnd += 512;
-            else
-                cwnd += (512 * 512) / cwnd;
-        }
         
         //handle ackNums
         if (window.len > 0){
             if (ack.ackNum == getTopSeq(&window)){ //what if no ack arrives
                 duplicates++;
-                /*fast retransmit
+                //fast retransmit
                 if (duplicates == 3){
                     ssthresh = max(cwnd/2, 1024);
                     cwnd = ssthresh + 1536;
-                    //resend
-                }*/
+                    if(sendto(sockfd, (void*) top(&window), 512, 0, address, sizeof(*address)) == -1){
+                        fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
+                        delete(&window);
+                        return -1;
+                    }
+                    printsent(top(&window), cwnd, ssthresh);
+                }
+                else if(duplicates > 3 && cwnd < 10240){
+                    cwnd += 512;
+                }
             }
             else{
                 while(window.len > 0 && (ack.ackNum > getTopSeq(&window) || (getTopSeq(&window) > (getBottomSeq(&window)+512)%25601 && ack.ackNum <= (getBottomSeq(&window) + 512)%25601))){
                     struct packet* message = pop(&window);
                     free(message);
+
+                    //End of Fast Recovery
+                    if(duplicates >= 3){
+                        cwnd = ssthresh;
+                        duplicates = 0;
+                    }
+                    //congestion avoidance
+                    if (cwnd < 10240){
+                        if (cwnd <= ssthresh)
+                            cwnd += 512;
+                        else
+                            cwnd += (512 * 512) / cwnd;
+                    }
                 }
                 duplicates = 0;
             }
