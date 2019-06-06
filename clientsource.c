@@ -87,9 +87,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
     init(&window);
     
     //main loop, alternates between sending and receiving loops
-    while(1){
-        
-        //TODO: handle duplicate acks
+    while(window.len != 0 || !done){
         
         //handle timeouts
         if (window.len > 0){
@@ -130,8 +128,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 free(message);
                 delete(&window);
                 return -1;
-            }
-            if (numRead == 0){
+            } else if (numRead == 0){
                 done = 1;
                 break;
             } else if (numRead < PAYLOAD)
@@ -178,12 +175,6 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         if (window.len > 0){
             if (ack.ackNum == getTopSeq(&window)){ //what if no ack arrives
                 duplicates++;
-                /*fast retransmit
-                if (duplicates == 3){
-                    ssthresh = max(cwnd/2, 1024);
-                    cwnd = ssthresh + 1536;
-                    //resend
-                }*/
             }
             else{
                 while(window.len > 0 && (ack.ackNum > getTopSeq(&window) || (getTopSeq(&window) > (getBottomSeq(&window)+512)%25601 && ack.ackNum <= (getBottomSeq(&window) + 512)%25601))){
@@ -193,8 +184,6 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 duplicates = 0;
             }
         }
-        if (window.len == 0 && done)
-        return 0;
     }
     
     return 0;
