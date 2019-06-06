@@ -21,15 +21,13 @@
 #define RWND 20
 
 //TESTING
-const char* testMessage = "Message: \"";
+//const char* testMessage = "Message: \"";
 
 char filename[50];
 
 //TESTING
 void printPacket(struct packet* p){
-	printf("SEQ: %d\n", p->seqNum);
-	printf("ACK: %d\n", p->ackNum);
-	printf("Flags: ack %d, syn %d, fin %d\n", p->ack, p->syn, p->fin);
+	printf("%d %d 0 0%s%s%s\n", p->seqNum, p->ackNum, p->ack?" ACK":"", p->syn?" SYN":"", p->fin?" FIN":"");
 }
 
 void memCheck(void* p){
@@ -104,7 +102,7 @@ void serveClient(int sockfd, int connectionNum){
 		}
 
 		//Testing
-		printf("\nReceived:\n");
+		printf("RECV ");
 		printPacket(receivedPacket);
 
 		//Received SYN packet
@@ -141,22 +139,22 @@ void serveClient(int sockfd, int connectionNum){
 			}
 
 			//Write payload to file and increase window
-			write(0, testMessage, strlen(testMessage));
-			write(0, receivedPacket->message, n-12);
+			//write(0, testMessage, strlen(testMessage));
+			//write(0, receivedPacket->message, n-12);
 			if(write(outfd, receivedPacket->message, n-12) < 0){
 				fprintf(stderr, "Could not print to fd %d\n", outfd);
 				fprintf(stderr, "Error: %s\n", strerror(errno));
 			}
-			printf("\"\n");
+			//printf("\"\n");
 			window = (receivedPacket->seqNum + n - 12) % (MAXSEQ+1);
 
 			//Write any (sequential) buffered packets to file
 			int i;
 			for(i = 0; buff[i] != NULL && i < RWND; i++){
-				write(0, testMessage, strlen(testMessage));
-				write(0, buff[i], buffLen[i]);
+				//write(0, testMessage, strlen(testMessage));
+				//write(0, buff[i], buffLen[i]);
 				write(outfd, buff[i], buffLen[i]);
-				printf("\"\n");
+				//printf("\"\n");
 				window += (buffLen[i]) % (MAXSEQ+1);
 				free(buff[i]);
 				buff[i] = NULL;
@@ -206,8 +204,8 @@ void serveClient(int sockfd, int connectionNum){
 			seq++;
 
 		//Testing
-		printf("\nWindow: %d\n", window);
-		printf("\nSending:\n");
+		//printf("\nWindow: %d\n", window);
+		printf("SEND ");
 		printPacket(sendingPacket);
 
 		//Send ACK
@@ -222,7 +220,7 @@ void serveClient(int sockfd, int connectionNum){
 		sendingPacket->seqNum = seq;
 
 		//Testing
-		printf("\nSending:\n");
+		printf("SEND ");
 		printPacket(sendingPacket);
 
 		//Send FIN
@@ -233,7 +231,7 @@ void serveClient(int sockfd, int connectionNum){
 		len = sizeof(cliaddr);
 		n = recvfrom(sockfd, (char *)receivedPacket, sizeof(struct packet), MSG_WAITALL,
 				(struct sockaddr *) cliaddr, (socklen_t *) &len);
-		printf("\nReceived:\n");
+		printf("RECV ");
 		printPacket(receivedPacket);
 		if(n == 12 && receivedPacket->ack == 1){
 			printf("Connection Closed Successfully\n");
