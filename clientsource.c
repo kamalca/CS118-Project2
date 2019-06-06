@@ -187,7 +187,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 }
             }
             else{
-                while(window.len > 0 && (ack.ackNum > getTopSeq(&window) || (getTopSeq(&window) > (getBottomSeq(&window)+512)%25601 && ack.ackNum <= (getBottomSeq(&window) + 512)%25601))){
+                while(window.len > 0 && ack.ackNum != getTopSeq(&window)){
                     struct packet* message = pop(&window);
                     free(message);
 
@@ -333,14 +333,23 @@ int main(int argc, char* argv[]){
     memset(their_addr.sin_zero, '\0', sizeof(their_addr.sin_zero));
     struct sockaddr* addr = (struct sockaddr*) &their_addr;
     //timeout setting
-    struct timeval timeout = {10, 0};
+    struct timeval timeout = {0, 500000};
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFD, flags | O_NONBLOCK);
 
     //handshake
-    if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
-        fprintf(stderr, "Handshake failed. Quitting program.\n");
+    for(int tries = 0; tries < 3; tries++){
+        if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
+            fprintf(stderr, "Handshake failed.\n");
+        }
+        else{
+            tries = 0;
+            break;
+        }
+    }
+    if(tries){
+        fprintf(stderr, "Quitting program.\n");
         close(sockfd);
         close(filefd);
         exit(1);
