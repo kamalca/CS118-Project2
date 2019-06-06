@@ -92,7 +92,11 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         //handle timeouts
         if (window.len > 0){
             struct timeval diff = getTimer(&window);
-            if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
+            if(diff.tv_sec >= 10){
+                fprintf(stderr, "Timeout\n");
+                return -1;
+            }
+            else if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
                 struct packet* message = top(&window);
                 if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
                     fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
@@ -165,7 +169,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
         }
         //check sender?
         printreceived(&ack, cwnd, ssthresh);
-
+        resetTimer(&window);
 
         //handle ackNums
         if (window.len > 0){
@@ -351,7 +355,7 @@ int main(int argc, char* argv[]){
         }
     }
     if(tries){
-        fprintf(stderr, "Quitting program.\n");
+        fprintf(stderr, "Max retries reached. Quitting program.\n");
         close(sockfd);
         close(filefd);
         exit(1);
@@ -372,7 +376,7 @@ int main(int argc, char* argv[]){
 
 
     //timeout setting
-    timeout.tv_sec = 10;
+    timeout.tv_sec = 2;
     timeout.tv_usec = 0;
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     //fin
