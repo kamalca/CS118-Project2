@@ -195,11 +195,14 @@ void serveClient(int sockfd, int connectionNum){
 			else
 				i = (((receivedPacket->seqNum + MAXSEQ + 1) - window) / 512) - 1;
 
-			if(buff[i] == NULL){
+			if(i < RWND && buff[i] == NULL){
 				buff[i] = calloc(1, receivedPacket->len);
                 memCheck(buff[i]);
 				strncpy(buff[i], receivedPacket->message, receivedPacket->len);
 				buffLen[i] = receivedPacket->len;
+			}
+			else{
+				fprintf(stderr, "Packet dropped\n");
 			}
 		}
 
@@ -241,10 +244,10 @@ void serveClient(int sockfd, int connectionNum){
 		printf("RECV ");
 		printPacket(receivedPacket);
 		if(n == 12 && receivedPacket->ack == 1){
-			printf("Connection Closed Successfully\n");
+			fprintf(stderr, "Connection Closed Successfully\n");
 		}
 		else{
-			printf("Connection not propperly closed\n");
+			fprintf(stderr, "Connection not propperly closed\n");
 		}
 	}
 
