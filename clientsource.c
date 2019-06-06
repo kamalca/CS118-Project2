@@ -332,14 +332,16 @@ int main(int argc, char* argv[]){
     their_addr.sin_addr.s_addr = htonl(servername);
     memset(their_addr.sin_zero, '\0', sizeof(their_addr.sin_zero));
     struct sockaddr* addr = (struct sockaddr*) &their_addr;
+    
+
     //timeout setting
-    struct timeval timeout = {0, 500000};
+    struct timeval timeout = {10, 0};
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFD, flags | O_NONBLOCK);
-
     //handshake
-    for(int tries = 0; tries < 3; tries++){
+    int tries;
+    for(tries = 0; tries < 3; tries++){
         if (handshake(sockfd, addr, &seqNum, &ackNum) == -1){
             fprintf(stderr, "Handshake failed.\n");
         }
@@ -355,6 +357,11 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
+
+    //timeout setting
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 500000;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     //transmit file
     if (transmit(filefd, sockfd, addr, &seqNum, &ackNum) == -1){
         fprintf(stderr, "Transmission failed. Quitting program.\n");
@@ -363,6 +370,11 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
+
+    //timeout setting
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     //fin
     if (fin(sockfd, addr, &seqNum) == -1){
         fprintf(stderr, "Fin failed. Quitting program.\n");
