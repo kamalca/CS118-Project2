@@ -339,7 +339,7 @@ int main(int argc, char* argv[]){
     
 
     //timeout setting
-    struct timeval timeout = {10, 0};
+    struct timeval timeout = {2, 0};
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     int flags = fcntl(sockfd, F_GETFL, 0);
     fcntl(sockfd, F_SETFD, flags | O_NONBLOCK);
