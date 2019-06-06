@@ -105,6 +105,11 @@ void serveClient(int sockfd, int connectionNum){
 		printf("RECV ");
 		printPacket(receivedPacket);
 
+		if(n < 12 || n-12 < receivedPacket->len || len > 512){
+			fprintf(stderr, "Invalid packet dropped\n");
+			continue;
+		}
+
 		//Received SYN packet
 		if(receivedPacket->syn != 0){
 			snprintf(filename, 49, "%d.file", connectionNum);
@@ -141,13 +146,13 @@ void serveClient(int sockfd, int connectionNum){
 			//Write payload to file and increase window
 			//write(0, testMessage, strlen(testMessage));
 			//write(0, receivedPacket->message, n-12);
-			if(write(outfd, receivedPacket->message, n-12) < 0){
+			if(write(outfd, receivedPacket->message, receivedPacket->len) < 0){
 				fprintf(stderr, "Could not print to fd %d\n", outfd);
 				fprintf(stderr, "Error %d: %s\n",  errno, strerror(errno));
 				exit(1);
 			}
 			//printf("\"\n");
-			window = (receivedPacket->seqNum + n - 12) % (MAXSEQ+1);
+			window = (receivedPacket->seqNum + receivedPacket->len) % (MAXSEQ+1);
 
 			//Write any (sequential) buffered packets to file
 			int i;
@@ -191,10 +196,10 @@ void serveClient(int sockfd, int connectionNum){
 				i = (((receivedPacket->seqNum + MAXSEQ + 1) - window) / 512) - 1;
 
 			if(buff[i] == NULL){
-				buff[i] = calloc(1, n - 12);
+				buff[i] = calloc(1, receivedPacket->len);
                 memCheck(buff[i]);
-				strncpy(buff[i], receivedPacket->message, n - 12);
-				buffLen[i] = n - 12;
+				strncpy(buff[i], receivedPacket->message, receivedPacket->len);
+				buffLen[i] = receivedPacket->len;
 			}
 		}
 
