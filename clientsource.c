@@ -37,39 +37,38 @@ unsigned short max(unsigned short a, unsigned short b){
 int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
     //use fin to close connection
     struct packet message, ack;
-    memset(message.zeros, 0, sizeof(message.zeros));
+    memset(&message, 0, sizeof(message));
     message.fin = 1;
-    message.ack = message.syn = 0;
     message.seqNum = *seqNum;
-    message.ackNum = 0;
-    int cwnd = 0, ssthresh = 0;
-
+    
     if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
         fprintf(stderr, "ERROR: Couldn't send fin to server, %s\n", strerror(errno));
         return -1;
     }
-    printsent(&message, cwnd, ssthresh);
+    printsent(&message, 0, 0);
 
     //receive finack
     if (recvfrom(sockfd, (void*) &ack, 12, 0, NULL, NULL) == -1){
         fprintf(stderr, "ERROR: Couldn't receive finack from server, %s\n", strerror(errno));
         return -1;
     }
-    printreceived(&ack, cwnd, ssthresh);
+    printreceived(&ack, 0, 0);
 
     //recieve fin
     if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
         fprintf(stderr, "ERROR: Couldn't receive fin from server, %s\n", strerror(errno));
         return -1;
     }
-    printreceived(&message, cwnd, ssthresh);
+    printreceived(&message, 0, 0);
 
+    ack.ackNum = message.ackNum;
+    ack.seqNum = *seqNum + 1;
     //send finack
     if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
         fprintf(stderr, "ERROR: Couldn't send finack to server, %s\n", strerror(errno));
         return -1;
     }
-    printsent(&ack, cwnd, ssthresh);
+    printsent(&ack, 0, 0);
     return 0;
 }
 
@@ -115,14 +114,9 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
 
             //prepare message
             struct packet* message = (struct packet*) malloc(sizeof(struct packet));
-            if (first){
+            memset(message, 0, sizeof(*message));
+            if (first)
                 message->ack = 1;
-                first = 0;
-            }
-            else
-            message->ack = 0;
-            message->syn = message->fin = 0;
-            memset(message->zeros, 0, sizeof(message->zeros));
             message->seqNum = *seqNum;
             message->ackNum = *ackNum;
 
@@ -137,7 +131,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 break;
             } else if (numRead < PAYLOAD)
             done = 1;
-
+            message->len = numRead;
             //send message
             if(sendto(sockfd, (void*) message, 12 + numRead, 0, address, sizeof(*address)) == -1){
                 fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
@@ -223,7 +217,10 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
 
     *seqNum = rand() % 25601; //assigning random sequence number
 
-    struct packet syn = {*seqNum, 0, 0, 1, 0, {0, 0, 0, 0, 0}, {}}, synack;
+    struct packet syn, synack;
+    memset(&syn, 0, sizeof(syn));
+    syn.syn = 1;
+    syn.seqNum = *seqNum;
     socklen_t size = sizeof(struct sockaddr_in);
 
     //send syn
