@@ -373,7 +373,7 @@ int main(int argc, char* argv[]){
 
     //timeout setting
     timeout.tv_sec = 0;
-    timeout.tv_usec = 500000;
+    timeout.tv_usec = 5000;
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
     //transmit file
     if (transmit(filefd, sockfd, addr, &seqNum, &ackNum) == -1){

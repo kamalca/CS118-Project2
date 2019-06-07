@@ -242,9 +242,9 @@ void serveClient(int sockfd, int connectionNum){
 		len = sizeof(cliaddr);
 		n = recvfrom(sockfd, (char *) &receivedPacket, sizeof(struct packet), MSG_WAITALL,
 				(struct sockaddr *) &cliaddr, (socklen_t *) &len);
-		printf("RECV ");
-		printPacket(&receivedPacket);
 		if(n == 12 && receivedPacket.ack == 1){
+			printf("RECV ");
+			printPacket(&receivedPacket);
 			fprintf(stderr, "Connection Closed Successfully\n");
 		}
 		else{
