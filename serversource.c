@@ -27,7 +27,7 @@ char filename[50];
 
 //TESTING
 void printPacket(struct packet* p){
-	printf("%d %d 0 0%s%s%s\n", p->seqNum, p->ackNum, p->ack?" ACK":"", p->syn?" SYN":"", p->fin?" FIN":"");
+	printf("%d %d 0 0%s%s%s%s\n", p->seqNum, p->ackNum, p->ack?" ACK":"", p->syn?" SYN":"", p->fin?" FIN":"", p->dup?" DUP":"");
 }
 
 void signalReceived(int sig){
@@ -205,6 +205,8 @@ void serveClient(int sockfd, int connectionNum){
 			else{
 				fprintf(stderr, "Packet dropped\n");
 			}
+
+			sendingPacket.dup = 1;
 		}
 
 		//ACK the next expected packet
