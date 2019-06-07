@@ -197,7 +197,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                     ssthresh = max(cwnd/2, 1024);
                     cwnd = ssthresh + 1536;
                     top(&window)->dup = 1;
-                    if(sendto(sockfd, (void*) top(&window), 512, 0, address, sizeof(*address)) == -1){
+                    if(sendto(sockfd, (void*) top(&window), 12 + top(&window)->len, 0, address, sizeof(*address)) == -1){
                         fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
                         delete(&window);
                         return -1;
