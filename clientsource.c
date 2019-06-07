@@ -76,7 +76,7 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
         }
         printreceived(&message, 0, 0);
         
-        if (server.sin_addr.s_addr == ((struct sockaddr_in*)address)->sin_addr.s_addr && server.sin_port == ((struct sockaddr_in*)address)->sin_port && message.FIN){
+        if (server.sin_addr.s_addr == ((struct sockaddr_in*)address)->sin_addr.s_addr && server.sin_port == ((struct sockaddr_in*)address)->sin_port && message.fin){
             ack.ackNum = message.seqNum;
             ack.seqNum = *seqNum + 1;
             //send finacks
