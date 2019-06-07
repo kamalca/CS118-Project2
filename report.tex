@@ -12,7 +12,7 @@
 
 \section{Description}
 \subsection{Header}
-The header was implemented in packet.h inside of the packet struct. The header section of the packet struct contains members seqNum, an unsigned short that holds the sequence number, ackNum, an unsigned short that holds the acknowledgement number, ack, the ACK FLAG, syn, the SYN flag, fin, the FIN flag, a byte of padding, and len, the length of the payload. At the end of the packet is a buffer of 512 characters, designed to hold the payload.
+The header was implemented in packet.h inside of the packet struct. The header section of the packet struct contains members seqNum, an unsigned short that holds the sequence number, ackNum, an unsigned short that holds the acknowledgement number, ack, the ACK FLAG, syn, the SYN flag, fin, the FIN flag, dup, the DUP flag, and len, the length of the payload. At the end of the packet is a buffer of 512 characters, designed to hold the payload.
 \subsection{Server}
 First the server sets up a socket at the given port. Then it sets the time out for receiving a packet to be 10 seconds.
 
