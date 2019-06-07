@@ -30,13 +30,6 @@ void printPacket(struct packet* p){
 	printf("%d %d 0 0%s%s%s\n", p->seqNum, p->ackNum, p->ack?" ACK":"", p->syn?" SYN":"", p->fin?" FIN":"");
 }
 
-void memCheck(void* p){
-    if(p == NULL){
-        fprintf(stderr, "Out of memory\n");
-        exit(1);
-    }
-}
-
 void signalReceived(int sig){
 	if(sig == SIGQUIT || sig == SIGTERM) {
 		write(2, "Stopping Server.\n", 17);
@@ -201,9 +194,13 @@ void serveClient(int sockfd, int connectionNum){
 
 			if(i < RWND && buff[i] == NULL){
 				buff[i] = calloc(1, receivedPacket.len);
-                memCheck(buff[i]);
-				strncpy(buff[i], receivedPacket.message, receivedPacket.len);
-				buffLen[i] = receivedPacket.len;
+                if(buff[i] == NULL){
+                	fprintf(stderr, "Out of memory. Packet dropped.\n");
+                }
+                else{
+					strncpy(buff[i], receivedPacket.message, receivedPacket.len);
+					buffLen[i] = receivedPacket.len;
+				}
 			}
 			else{
 				fprintf(stderr, "Packet dropped\n");
