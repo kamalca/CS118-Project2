@@ -69,7 +69,7 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
         }
         printreceived(&message, 0, 0);
         
-        ack.ackNum = message.ackNum;
+        ack.ackNum = message.seqNum;
         ack.seqNum = *seqNum + 1;
         //send finacks
         if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
@@ -107,7 +107,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             }
             else if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
                 struct packet* message = top(&window);
-                if(sendto(sockfd, (void*) message, sizeof(message), 0, address, sizeof(*address)) == -1){
+                if(sendto(sockfd, (void*) message, 12 + message->len, 0, address, sizeof(*address)) == -1){
                     fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
                     free(message);
                     delete(&window);
@@ -125,8 +125,10 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             //prepare message
             struct packet* message = (struct packet*) malloc(sizeof(struct packet));
             memset(message, 0, sizeof(*message));
-            if (first)
+            if (first){
                 message->ack = 1;
+                first = 0;
+            }
             message->seqNum = *seqNum;
             message->ackNum = *ackNum;
 
