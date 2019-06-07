@@ -8,8 +8,8 @@ struct packet {
 	char ack;
 	char syn;
 	char fin;
-	int len;
 	char padding;
+	int len;
 	char message[512];
 };
 
