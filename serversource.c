@@ -102,7 +102,7 @@ void serveClient(int sockfd, int connectionNum){
 		printf("RECV ");
 		printPacket(&receivedPacket);
 
-		if(n < 12 || n-12 < receivedPacket.len || len > 512){
+		if(n < 12 || n-12 < receivedPacket.len || receivedPacket.len > 512){
 			fprintf(stderr, "Invalid packet dropped\n");
 			continue;
 		}
