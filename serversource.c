@@ -59,10 +59,14 @@ void signalReceived(int sig){
 
 void serveClient(int sockfd, int connectionNum){
 	srand(time(NULL));
-	struct packet* sendingPacket = calloc(1, sizeof(struct packet));
-	struct packet* receivedPacket = calloc(1, sizeof(struct packet));
-	struct sockaddr_in* cliaddr = calloc(1, sizeof(struct sockaddr_in));
-    memCheck(sendingPacket); memCheck(receivedPacket); memCheck(cliaddr);
+
+	struct packet sendingPacket;
+	memset(&sendingPacket, 0, sizeof(struct packet));
+	struct packet receivedPacket;
+	memset(&receivedPacket, 0, sizeof(struct packet));
+	struct sockaddr_in cliaddr;
+	memset(&cliaddr, 0, sizeof(struct sockaddr_in));
+
     char* buff[RWND];
     int buffLen[RWND];
     memset(buff, 0, RWND*sizeof(buff[0]));
@@ -81,13 +85,13 @@ void serveClient(int sockfd, int connectionNum){
 	// 	(socklen_t) sizeof(struct sockaddr_in)); 
 
 	while(!fin){
-		memset(sendingPacket, 0, sizeof(struct packet));
-		memset(receivedPacket, 0, sizeof(struct packet));
-		memset(cliaddr, 0, sizeof(struct sockaddr));
+		memset(&sendingPacket, 0, sizeof(struct packet));
+		memset(&receivedPacket, 0, sizeof(struct packet));
+		memset(&cliaddr, 0, sizeof(struct sockaddr));
 
 		len = sizeof(cliaddr);
-		n = recvfrom(sockfd, (char *)receivedPacket, sizeof(struct packet), MSG_WAITALL,
-				(struct sockaddr *) cliaddr, (socklen_t *) &len);
+		n = recvfrom(sockfd, (char *) &receivedPacket, sizeof(struct packet), MSG_WAITALL,
+				(struct sockaddr *) &cliaddr, (socklen_t *) &len);
 		if(n < 1){
 			fprintf(stderr, "Timeout\n");
 			if(window == -1 || outfd < 0){
@@ -103,15 +107,15 @@ void serveClient(int sockfd, int connectionNum){
 
 		//Testing
 		printf("RECV ");
-		printPacket(receivedPacket);
+		printPacket(&receivedPacket);
 
-		if(n < 12 || n-12 < receivedPacket->len || len > 512){
+		if(n < 12 || n-12 < receivedPacket.len || len > 512){
 			fprintf(stderr, "Invalid packet dropped\n");
 			continue;
 		}
 
 		//Received SYN packet
-		if(receivedPacket->syn != 0){
+		if(receivedPacket.syn != 0){
 			snprintf(filename, 49, "%d.file", connectionNum);
 			outfd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
 			if(outfd < 0){
@@ -126,8 +130,8 @@ void serveClient(int sockfd, int connectionNum){
 				break;
 			}
 
-			sendingPacket->syn = 1;
-			window = receivedPacket->seqNum + 1;
+			sendingPacket.syn = 1;
+			window = receivedPacket.seqNum + 1;
 		}
 
 		//First packet is not SYN
@@ -137,22 +141,22 @@ void serveClient(int sockfd, int connectionNum){
 		}
 
 		//Packet in order
-		if(receivedPacket->seqNum == window){
+		if(receivedPacket.seqNum == window){
 			//Inconsistency Check
-			if(receivedPacket->ack && receivedPacket->ackNum != seq){
+			if(receivedPacket.ack && receivedPacket.ackNum != seq){
 				fprintf(stderr, "Packet ACK may not be correct.\n");
 			}
 
 			//Write payload to file and increase window
 			//write(0, testMessage, strlen(testMessage));
 			//write(0, receivedPacket->message, n-12);
-			if(write(outfd, receivedPacket->message, receivedPacket->len) < 0){
+			if(write(outfd, receivedPacket.message, receivedPacket.len) < 0){
 				fprintf(stderr, "Could not print to fd %d\n", outfd);
 				fprintf(stderr, "Error %d: %s\n",  errno, strerror(errno));
 				exit(1);
 			}
 			//printf("\"\n");
-			window = (receivedPacket->seqNum + receivedPacket->len) % (MAXSEQ+1);
+			window = (receivedPacket.seqNum + receivedPacket.len) % (MAXSEQ+1);
 
 			//Write any (sequential) buffered packets to file
 			int i;
@@ -178,7 +182,7 @@ void serveClient(int sockfd, int connectionNum){
 			}
 
 			//Packet was FIN
-			if((fin = receivedPacket->fin)){
+			if((fin = receivedPacket.fin)){
 				window = (window + 1) % (MAXSEQ+1);
 				filename[0] = 0;
 				close(outfd);
@@ -186,20 +190,20 @@ void serveClient(int sockfd, int connectionNum){
 			}
 		}
 		//Packet out of order
-		else if(receivedPacket->syn == 0 && receivedPacket->fin == 0){
+		else if(receivedPacket.syn == 0 && receivedPacket.fin == 0){
 			int i;
 
 			//Calculate buffer location. Must handle wrap-around for SeqNum
-			if(receivedPacket->seqNum > window)
-				i = ((receivedPacket->seqNum - window) / 512) - 1;
+			if(receivedPacket.seqNum > window)
+				i = ((receivedPacket.seqNum - window) / 512) - 1;
 			else
-				i = (((receivedPacket->seqNum + MAXSEQ + 1) - window) / 512) - 1;
+				i = (((receivedPacket.seqNum + MAXSEQ + 1) - window) / 512) - 1;
 
 			if(i < RWND && buff[i] == NULL){
-				buff[i] = calloc(1, receivedPacket->len);
+				buff[i] = calloc(1, receivedPacket.len);
                 memCheck(buff[i]);
-				strncpy(buff[i], receivedPacket->message, receivedPacket->len);
-				buffLen[i] = receivedPacket->len;
+				strncpy(buff[i], receivedPacket.message, receivedPacket.len);
+				buffLen[i] = receivedPacket.len;
 			}
 			else{
 				fprintf(stderr, "Packet dropped\n");
@@ -207,43 +211,43 @@ void serveClient(int sockfd, int connectionNum){
 		}
 
 		//ACK the next expected packet
-		sendingPacket->seqNum = seq;
-		sendingPacket->ackNum = window;
-		sendingPacket->ack = 1;
-		if(sendingPacket->syn != 0)
+		sendingPacket.seqNum = seq;
+		sendingPacket.ackNum = window;
+		sendingPacket.ack = 1;
+		if(sendingPacket.syn != 0)
 			seq++;
 
 		//Testing
 		//printf("\nWindow: %d\n", window);
 		printf("SEND ");
-		printPacket(sendingPacket);
+		printPacket(&sendingPacket);
 
 		//Send ACK
-		sendto(sockfd, sendingPacket, 12,  
-			0, (const struct sockaddr *) cliaddr, 
+		sendto(sockfd, &sendingPacket, 12,  
+			0, (const struct sockaddr *) &cliaddr, 
 			(socklen_t) sizeof(struct sockaddr_in));
 	}
 
 	if(fin){
-		memset(sendingPacket, 0, sizeof(struct packet));
-		sendingPacket->fin = 1;
-		sendingPacket->seqNum = seq;
+		memset(&sendingPacket, 0, sizeof(struct packet));
+		sendingPacket.fin = 1;
+		sendingPacket.seqNum = seq;
 
 		//Testing
 		printf("SEND ");
-		printPacket(sendingPacket);
+		printPacket(&sendingPacket);
 
 		//Send FIN
-		sendto(sockfd, sendingPacket, 12,  
-			0, (const struct sockaddr *) cliaddr, 
+		sendto(sockfd, &sendingPacket, 12,  
+			0, (const struct sockaddr *) &cliaddr, 
 			(socklen_t) sizeof(struct sockaddr_in));
 
 		len = sizeof(cliaddr);
-		n = recvfrom(sockfd, (char *)receivedPacket, sizeof(struct packet), MSG_WAITALL,
-				(struct sockaddr *) cliaddr, (socklen_t *) &len);
+		n = recvfrom(sockfd, (char *) &receivedPacket, sizeof(struct packet), MSG_WAITALL,
+				(struct sockaddr *) &cliaddr, (socklen_t *) &len);
 		printf("RECV ");
-		printPacket(receivedPacket);
-		if(n == 12 && receivedPacket->ack == 1){
+		printPacket(&receivedPacket);
+		if(n == 12 && receivedPacket.ack == 1){
 			fprintf(stderr, "Connection Closed Successfully\n");
 		}
 		else{
@@ -251,10 +255,6 @@ void serveClient(int sockfd, int connectionNum){
 		}
 	}
 
-
-	free(sendingPacket);
-	free(receivedPacket);
-	free(cliaddr);
 	close(outfd);
 	outfd = -1;
 }

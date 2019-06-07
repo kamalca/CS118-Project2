@@ -71,7 +71,7 @@ struct timeval getTimer(Queue* q){
 		diff.tv_usec = 0;
 		return diff;
 	}
-	timersub(&(q->head->tv), &now, &diff);
+	timersub(&now, &(q->head->tv), &diff);
 	return diff;
 }
 
