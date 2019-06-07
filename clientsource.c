@@ -27,9 +27,9 @@ void printreceived(struct packet* message, int cwnd, int ssthresh){
 
 unsigned short max(unsigned short a, unsigned short b){
     if (a > b)
-    return a;
+        return a;
     else
-    return b;
+        return b;
 }
 
 
@@ -143,7 +143,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 done = 1;
                 break;
             } else if (numRead < PAYLOAD)
-            done = 1;
+                done = 1;
             message->len = numRead;
             //send message
             if(sendto(sockfd, (void*) message, 12 + numRead, 0, address, sizeof(*address)) == -1){
@@ -172,7 +172,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             }
         }
         if(ack.ack == 0){
-                fprintf(stderr, "ERROR: Packet is not an ACK\n");
+            fprintf(stderr, "ERROR: Packet is not an ACK\n");
         }
         //check sender?
         printreceived(&ack, cwnd, ssthresh);
@@ -219,7 +219,6 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             }
         }
     }
-
     return 0;
 }
 
@@ -249,7 +248,7 @@ int handshake(int sockfd, struct sockaddr* address, unsigned short* seqNum, unsi
         return -1;
     }
     if (synack.syn != 1)
-    return -1;
+        return -1;
     printreceived(&synack, 0, 0);
     *ackNum = synack.seqNum + 1;
     if (synack.ackNum != *seqNum + 1){
@@ -268,20 +267,21 @@ long iptolong(char* ip){
     int i = 0, a = 0;
     long result = 0;
     while (ip[i] != 0){
-        a *= 10;
+
         if (ip[i] == '.'){
-            result *= 256;
             result += a;
+            result *= 256;
             a = 0;
         } else if (ip[i] < '0'|| ip[i] > '9'){
             fprintf(stderr, "ERROR: improper ip address\n");
             return -1;
-        } else
-        a += ip[i] - '0';
+        } else{
+            a *= 10;
+            a += ip[i] - '0';
+        }
         i++;
     }
 
-    result *= 256;
     result += a;
     return result;
 }
@@ -294,7 +294,7 @@ int stringtoint(char* string){
     for (i = 0; i < size; i++){
         number *= 10;
         if (string[i] > '9' || string[i] < '0')
-        return -1;
+            return -1;
         number += string[i] - '0';
     }
     return number;
@@ -315,7 +315,7 @@ int main(int argc, char* argv[]){
     }
 
     if (strcmp(argv[1], "localhost") == 0)
-    servername = 0x7f000001;
+        servername = 0x7f000001;
     else{
         servername = iptolong(argv[1]);
         if (servername == -1){
