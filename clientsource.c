@@ -114,6 +114,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                     return -1;
                 }
                 printsent(message, cwnd, ssthresh);
+                resetTimer(&window);
                 ssthresh = max (cwnd / 2, 1024);
                 cwnd = 512;
             }
