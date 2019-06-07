@@ -14,13 +14,13 @@
 
 
 void printsent(struct packet* message, int cwnd, int ssthresh){
-    printf("SEND %i %i %i %i%s%s%s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? " ACK" : "", message->syn ? " SYN" : "", message->fin ? " FIN" : "");
+    printf("SEND %i %i %i %i%s%s%s%s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? " ACK" : "", message->syn ? " SYN" : "", message->fin ? " FIN" : "", message->dup ? " DUP" : "");
 }
 
 
 
 void printreceived(struct packet* message, int cwnd, int ssthresh){
-    printf("RECV %i %i %i %i%s%s%s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? " ACK" : "", message->syn ? " SYN" : "", message->fin ? " FIN" : "");
+    printf("RECV %i %i %i %i%s%s%s%s\n", message->seqNum, message->ackNum, cwnd, ssthresh, message->ack ? " ACK" : "", message->syn ? " SYN" : "", message->fin ? " FIN" : "", message->dup ? " DUP" : "");
 }
 
 
@@ -116,6 +116,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
             }
             else if (diff.tv_sec > 0 || diff.tv_usec/1000 > 500){
                 struct packet* message = top(&window);
+                message->dup = 1;
                 if(sendto(sockfd, (void*) message, 12 + message->len, 0, address, sizeof(*address)) == -1){
                     fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
                     free(message);
@@ -195,6 +196,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 if (duplicates == 3){
                     ssthresh = max(cwnd/2, 1024);
                     cwnd = ssthresh + 1536;
+                    top(&window)->dup = 1;
                     if(sendto(sockfd, (void*) top(&window), 512, 0, address, sizeof(*address)) == -1){
                         fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
                         delete(&window);
