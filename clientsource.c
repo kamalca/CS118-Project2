@@ -41,6 +41,7 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
     message.fin = 1;
     message.seqNum = *seqNum;
     
+    //send fin
     if (sendto(sockfd, (void*) &message, 12, 0, address, sizeof(*address)) == -1){
         fprintf(stderr, "ERROR: Couldn't send fin to server, %s\n", strerror(errno));
         return -1;
@@ -54,21 +55,30 @@ int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
     }
     printreceived(&ack, 0, 0);
 
-    //recieve fin
-    if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
-        fprintf(stderr, "ERROR: Couldn't receive fin from server, %s\n", strerror(errno));
-        return -1;
-    }
-    printreceived(&message, 0, 0);
-
-    ack.ackNum = message.ackNum;
-    ack.seqNum = *seqNum + 1;
-    //send finack
-    if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
-        fprintf(stderr, "ERROR: Couldn't send finack to server, %s\n", strerror(errno));
-        return -1;
-    }
-    printsent(&ack, 0, 0);
+    struct timeval start, now;
+    gettimeofday(&start, 0);
+    do{
+        //recieve fins
+        if (recvfrom(sockfd, (void*) &message, 12, 0, NULL, NULL) == -1){
+            if (errno == EAGAIN){
+                gettimeofday(&now, 0);
+                continue;
+            }
+            fprintf(stderr, "ERROR: Couldn't receive fin from server, %s\n", strerror(errno));
+            return -1;
+        }
+        printreceived(&message, 0, 0);
+        
+        ack.ackNum = message.ackNum;
+        ack.seqNum = *seqNum + 1;
+        //send finacks
+        if (sendto(sockfd, (void*) &ack, 12, 0, address, sizeof(*address)) == -1){
+            fprintf(stderr, "ERROR: Couldn't send finack to server, %s\n", strerror(errno));
+            return -1;
+        }
+        printsent(&ack, 0, 0);
+        gettimeofday(&now, 0);
+    } while (now.tv_sec - start.tv_sec < 2);
     return 0;
 }
 
