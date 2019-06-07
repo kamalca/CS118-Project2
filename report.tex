@@ -11,6 +11,8 @@
 \maketitle
 
 \section{Description}
+\subsection{Header}
+The header was implemented in packet.h inside of the packet struct. The header section of the packet struct contains members seqNum, an unsigned short that holds the sequence number, ackNum, an unsigned short that holds the acknowledgement number, ack, the ACK FLAG, syn, the SYN flag, fin, the FIN flag, a byte of padding, and len, the length of the payload. At the end of the packet is a buffer of 512 characters, designed to hold the payload.
 \subsection{Server}
 First the server sets up a socket at the given port. Then it sets the time out for receiving a packet to be 10 seconds.
 
@@ -25,7 +27,19 @@ Upon timeout or the connection ending, the same function (serveClient) runs but 
 Upon receiving a signal from the user, a signal handler is activated that checks for a file being open. If a file is open it rewrites it with the word "INTERRUPT".
 
 \subsection{Client}
+The client begins by processing command line arguments. It then sets up the socket and destination address using these arguments. The sending of the packet is split into three functions, handshake(), transmission(), and fin().
 
+First, handshake() is run. It sets seqNum to a random number, creates a packet with seqNum and the SYN flag set to 1, and sends that packet to the server. It then waits two seconds for a SYNACK packet to arrive from the server. If the SYN packet fails to send or no SYNACK arrives within two seconds, the function returns -1 to signal that it failed. This function is attempted three times before the client gives up on creating a connection with the server and quits.
+
+After the connection with server is established, client calls transmit() to send the contents of the file. This function uses a main loop that continues until the last packet is acknowledged by the server. The window and the packets being sent are tracked using a queue implemented in queue.h. The window size is governed by variables cwnd, and ssthresh, that follow slow start, congestion avoidance, and fast retransmit and recovery. Once a packet is created and sent to server, it, along with the time it was sent, is added to the queue and is only popped after it is acknowledged.
+
+First, the loop checks for timeouts. It checks the timestamp of the top packet in the queue. If half a second has elapsed since the packet was sent, the packet timed out. transmit() resends the packet, resets its timer to the current timer, and sets ssthresh to max (cwnd / 2, 1024) and cwnd to 512 to enter slow start.
+
+Next the loop checks if there is room in the window to send a new packet. If so, it reads from the file into a new packet, adds the packet to the queue, and sends the packet to server.
+
+Finally, the loop reads from the socket for ACKs sent from server. If no packet is immediately available to read from server, the client does not wait and continues to the next iteration of the loop. Otherwise, it reads in and processes the ACK. If the ackNum of the packet is equal to the seqNum of the top of the queue, it is a duplicate ACK. Variable ``duplicates'' is incremented. If ``duplicates'' reaches 3, the client enters fast retransmit, sets ssthresh to max (cwnd / 2, 1024), cwnd to ssthresh + 1536, and resends the top packet in the queue. If ``duplicates'' is greater than 3, meaning another duplicate ACK arrives, then cwnd is increased by 512. If the ackNum is greater than the top packet's seqNum, then it pops that packet and all other packets this ACK acknowledges from the queue. If the client is in fast recovery mode, it is sent to congestion avoidance mode by setting cwnd to ssthresh and restting duplicates to 0. Then depending on if the client is in congestion avoidance or slow start mode, cwnd is increased by 512 or (512 * 512) / cwnd.
+
+When all packets containing the contents of the file have been sent, fin() is called to close the connection to the server. fin() sends a FIN header to server, waits for server's ACK, then for the following two seconds, receives packets, and ACKs any FINs coming from the server, and drops the rest. 
 
 \section{Difficulties}
 \subsection{Server}
@@ -36,7 +50,9 @@ The second biggest difficulty was that during testing on the virtual machine, al
 Lastly one weird problem was not receiving the entire UDP packet. Sometimes recvfrom would only read a small number of bytes (eg. 8) even though the buffer size is 524 and the client never sent a small packet like that. This problem only existed on the Ubuntu Virtual Machine. We never ran into similar problems when testing locally on our MacOS systems.
 
 \subsection{Client}
+A large hump in the development of the client was advancing from a stop-and-wait to a go-back-n algorithm, where we had to keep track of which packets were sent and which were already acknowledged. This was implemented by dynamically allocating and pushing packets into a queue, checking acks against the front packet in the queue, and popping acknowledged packets from the queue.
 
+Another challenge was in handling timing. We found that simply setting the socket timeout value to either half a second or ten seconds, the two timeouts mentioned in the spec, was not sufficient. Instead, we gave each packet a timestamp for most recent transmission, and kept a timestamp of most recent packet received, both checked at each iteration of the main loop. If the timestamp for the top packet in the queue was over half a second before the current time, that signalled a packet timeout that would be immediately handled. If the last packet received timestamp was over ten seconds ago, the program would abort.
 
 For the queue data structure a lot of precaution had to be taken to prevent segmentation faults from trying to access values of the queue when the queue was in fact empty.
 
