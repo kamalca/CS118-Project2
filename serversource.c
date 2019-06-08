@@ -91,6 +91,10 @@ void serveClient(int sockfd, int connectionNum){
 				continue;
 			}
 			else{
+				if(ftruncate(outfd, 0) < 0){
+					fprintf(stderr, "Could not clear file: %s\n", filename);
+					fprintf(stderr, "Error: %s\n", strerror(errno));
+				}
 				filename[0] = 0;
 				close(outfd);
 				outfd = -1;
