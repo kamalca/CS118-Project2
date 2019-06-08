@@ -103,14 +103,16 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
     //queue contains all packets that have been sent but not yet acknowled
     Queue window;
     init(&window);
-
+    struct timeval latest, now;
+    gettimeofday(&latest, 0);
     //main loop, alternates between sending and receiving loops
     while(window.len != 0 || !done){
 
         //handle timeouts
         if (window.len > 0){
+            gettimeofday(&now, 0);
             struct timeval diff = getTimer(&window);
-            if(diff.tv_sec >= 10){
+            if(now.tv_sec - latest.tv_sec >= 10){
                 fprintf(stderr, "Timeout\n");
                 return -1;
             }
@@ -181,6 +183,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 return -1;
             }
         }
+        gettimeofday(&latest, 0);
         if(ack.ack == 0){
             fprintf(stderr, "ERROR: Packet is not an ACK\n");
         }
