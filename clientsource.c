@@ -34,6 +34,15 @@ unsigned short max(unsigned short a, unsigned short b){
 
 
 
+unsigned short min(unsigned short a, unsigned short b){
+    if (a < b)
+        return a;
+    else
+        return b;
+}
+
+
+
 int fin(int sockfd, struct sockaddr* address, unsigned short* seqNum){
     //use fin to close connection
     struct packet message, ack;
@@ -198,7 +207,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                 //fast retransmit
                 if (duplicates == 3){
                     ssthresh = max(cwnd/2, 1024);
-                    cwnd = ssthresh + 1536;
+                    cwnd = min(ssthresh + 1536, 10240);
                     top(&window)->dup = 1;
                     if(sendto(sockfd, (void*) top(&window), 12 + top(&window)->len, 0, address, sizeof(*address)) == -1){
                         fprintf(stderr, "ERROR: Couldn't send packet to server, %s\n", strerror(errno));
@@ -208,7 +217,7 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
                     printsent(top(&window), cwnd, ssthresh);
                 }
                 else if(duplicates > 3 && cwnd < 10240){
-                    cwnd += 512;
+                    cwnd = min(cwnd + 512, 10240);
                 }
             }
             else{
@@ -218,15 +227,15 @@ int transmit(int file, int sockfd, struct sockaddr* address, unsigned short* seq
 
                     //End of Fast Recovery
                     if(duplicates >= 3){
-                        cwnd = ssthresh;
+                        cwnd = min(ssthresh, 10240);
                         duplicates = 0;
                     }
                     //congestion avoidance
                     if (cwnd < 10240){
                         if (cwnd <= ssthresh)
-                            cwnd += 512;
+                            cwnd = min(cwnd + 512, 10240);
                         else
-                            cwnd += (512 * 512) / cwnd;
+                            cwnd = min(cwnd + (512 * 512) / cwnd, 10240);
                     }
                 }
                 duplicates = 0;
