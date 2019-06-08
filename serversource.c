@@ -198,7 +198,7 @@ void serveClient(int sockfd, int connectionNum){
                 	fprintf(stderr, "Out of memory. Packet dropped.\n");
                 }
                 else{
-					strncpy(buff[i], receivedPacket.message, receivedPacket.len);
+					memcpy(buff[i], receivedPacket.message, receivedPacket.len);
 					buffLen[i] = receivedPacket.len;
 				}
 			}
